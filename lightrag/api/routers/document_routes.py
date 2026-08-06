@@ -37,6 +37,7 @@ from fastapi import (
     Response,
     UploadFile,
 )
+from starlette.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from lightrag import LightRAG
@@ -6044,6 +6045,105 @@ def create_document_routes(
             logger.error(f"Error getting pipeline status: {str(e)}")
             logger.error(traceback.format_exc())
             raise internal_server_error(e)
+
+    @router.get(
+        "/{doc_id}/file",
+        dependencies=[Depends(combined_auth)],
+        summary="Download the source file for a document",
+    )
+    async def get_document_file(
+        doc_id: str,
+        workspace: Optional[str] = Query(
+            None,
+            description="Knowledge base (workspace) the document belongs to.",
+        ),
+        download: bool = Query(
+            False,
+            description="Set to true to force download instead of inline preview.",
+        ),
+    ):
+        """Return the original source file for a document.
+
+        Resolves the file path from ``doc_status`` storage, then locates
+        the file under the input directory (with optional KB subdirectory).
+        """
+        if workspace and build_rag_instance is not None:
+            from .knowledge_base_routes import _get_rag
+
+            kb_rag = await _get_rag(workspace, build_rag_instance)
+        else:
+            kb_rag = rag
+
+        doc_status = getattr(kb_rag, "doc_status", None)
+        if doc_status is None:
+            raise HTTPException(status_code=503, detail="Document status storage unavailable")
+
+        status_data = await doc_status.get_by_id(doc_id)
+        if not status_data:
+            raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+
+        file_path = status_data.get("file_path", "")
+        if not file_path or file_path == "unknown_source":
+            raise HTTPException(status_code=404, detail="Source file not available for this document")
+
+        input_dir = Path(global_args.input_dir)
+        name = Path(file_path).name
+
+        # Pipeline moves processed files into __parsed__ subdirectory.
+        # Search order: KB __parsed__ → KB root → primary __parsed__ → primary root
+        candidates: list[Path] = []
+        if workspace:
+            candidates.append(input_dir / workspace / "__parsed__" / name)
+            candidates.append(input_dir / workspace / file_path)
+            candidates.append(input_dir / workspace / "__parsed__" / file_path)
+        candidates.append(input_dir / "__parsed__" / name)
+        candidates.append(input_dir / "__parsed__" / file_path)
+        candidates.append(input_dir / file_path)
+
+        resolved = None
+        for candidate in candidates:
+            if candidate.is_file():
+                resolved = candidate
+                break
+
+        if resolved is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Source file not found on disk (tried: {', '.join(str(c) for c in candidates)})",
+            )
+
+        # Map common extensions to MIME types for inline browser viewing.
+        # Browsers render text/PDF/images inline; Office files fall back to download.
+        suffix = resolved.suffix.lower()
+        mime_map = {
+            ".txt": "text/plain; charset=utf-8",
+            ".md": "text/plain; charset=utf-8",
+            ".csv": "text/csv; charset=utf-8",
+            ".json": "application/json",
+            ".xml": "application/xml",
+            ".html": "text/html; charset=utf-8",
+            ".pdf": "application/pdf",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+            ".bmp": "image/bmp",
+        }
+        media_type = mime_map.get(suffix)
+
+        headers: dict[str, str] = {}
+        if download:
+            headers["Content-Disposition"] = (
+                f'attachment; filename="{Path(file_path).name}"'
+            )
+
+        return FileResponse(
+            resolved,
+            filename=Path(file_path).name,
+            media_type=media_type,
+            headers=headers if headers else None,
+        )
 
     # TODO: Deprecated, use /documents/paginated instead
     @router.get(

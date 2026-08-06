@@ -39,6 +39,7 @@ import {
   scanNewDocuments,
   getDocumentsPaginatedWithTimeout,
   getKnowledgeBases,
+  getDocumentDownloadUrl,
   DocsStatusesResponse,
   DocStatus,
   DocStatusResponse,
@@ -51,8 +52,9 @@ import { toast } from 'sonner'
 import { useBackendState } from '@/stores/state'
 import { copyToClipboard } from '@/utils/clipboard'
 
-import { RefreshCwIcon, ActivityIcon, ArrowUpIcon, ArrowDownIcon, RotateCcwIcon, CheckSquareIcon, XIcon, AlertTriangle, Info, CopyIcon, Database, SearchIcon } from 'lucide-react'
+import { RefreshCwIcon, ActivityIcon, ArrowUpIcon, ArrowDownIcon, RotateCcwIcon, CheckSquareIcon, XIcon, AlertTriangle, Info, CopyIcon, Database, SearchIcon, ExternalLinkIcon, DownloadIcon } from 'lucide-react'
 import PipelineStatusDialog from '@/components/documents/PipelineStatusDialog'
+import DocxPreviewModal from '@/components/documents/DocxPreviewModal'
 import {
   getStatusBucket,
   getStatusRequestFilters,
@@ -402,6 +404,7 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
   }, []);
 
   const [showPipelineStatus, setShowPipelineStatus] = useState(false)
+  const [previewDoc, setPreviewDoc] = useState<{ id: string; name: string; kb?: string } | null>(null)
   const { t, i18n } = useTranslation()
   const health = useBackendState.use.health()
   const pipelineActive = useBackendState.use.pipelineActive()
@@ -1364,9 +1367,12 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
     // Reset health check timer with 1 second delay to avoid race condition
     useBackendState.getState().resetHealthCheckTimerDelayed(1000)
 
-    // Schedule a health check 2 seconds after successful clear
+    // Immediate refresh to show updated data
+    refreshDocumentsThrottled()
+
+    // Schedule a health check 2 seconds after successful delete
     startPollingInterval(2000)
-  }, [startPollingInterval])
+  }, [startPollingInterval, refreshDocumentsThrottled])
 
   // Handle documents cleared callback with proper interval reset
   const handleDocumentsCleared = useCallback(async () => {
@@ -1472,6 +1478,16 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
             >
               <ActivityIcon /> {t('documentPanel.documentManager.pipelineStatusButton')}
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              side="bottom"
+              tooltip={t('documentPanel.documentManager.refreshTooltip')}
+            >
+              <RotateCcwIcon className="h-4 w-4" />
+            </Button>
           </div>
 
           {/* Search input */}
@@ -1566,6 +1582,13 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
               onOpenChange={setShowPipelineStatus}
               workspace={kbFilter === '*' ? undefined : activeKbId}
             />
+            <DocxPreviewModal
+              open={!!previewDoc}
+              docId={previewDoc?.id || ''}
+              fileName={previewDoc?.name || ''}
+              workspace={previewDoc?.kb}
+              onClose={() => setPreviewDoc(null)}
+            />
           </div>
         </div>
 
@@ -1647,16 +1670,6 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
                     {t('documentPanel.documentManager.filters.failed')} ({failedCount})
                   </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshing}
-                  side="bottom"
-                  tooltip={t('documentPanel.documentManager.refreshTooltip')}
-                >
-                  <RotateCcwIcon className="h-4 w-4" />
-                </Button>
               </div>
             </div>
             <CardDescription aria-hidden="true" className="hidden">{t('documentPanel.documentManager.uploadedDescription')}</CardDescription>
@@ -1678,6 +1691,9 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
                     <Table className="w-full">
                       <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                         <TableRow className="border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/75 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">
+                          <TableHead className="w-16 text-center">
+                            {t('documentPanel.documentManager.columns.select')}
+                          </TableHead>
                           <TableHead
                             onClick={() => handleSort('id')}
                             className="cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-800 select-none"
@@ -1691,6 +1707,7 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
                               )}
                             </div>
                           </TableHead>
+                          <TableHead className="w-20 text-center">{t('documentPanel.documentManager.columns.source', '源文件')}</TableHead>
                           <TableHead>{t('documentPanel.documentManager.columns.summary')}</TableHead>
                           <TableHead>{t('documentPanel.documentManager.columns.status')}</TableHead>
                           <TableHead>{t('documentPanel.documentManager.columns.length')}</TableHead>
@@ -1726,14 +1743,18 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
                               {t('documentPanel.documentManager.columns.knowledgeBase')}
                             </TableHead>
                           )}
-                          <TableHead className="w-16 text-center">
-                            {t('documentPanel.documentManager.columns.select')}
-                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody className="text-sm overflow-auto">
                         {filteredAndSortedDocs && filteredAndSortedDocs.map((doc) => (
                           <TableRow key={doc.id}>
+                            <TableCell className="text-center">
+                              <Checkbox
+                                checked={selectedDocIds.includes(doc.id)}
+                                onCheckedChange={(checked) => handleDocumentSelect(doc.id, checked === true)}
+                                className="mx-auto"
+                              />
+                            </TableCell>
                             <TableCell className="truncate font-mono overflow-visible max-w-[250px]">
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1746,6 +1767,27 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
                                 </TooltipContent>
                               </Tooltip>
                               <div className="text-xs text-gray-500 truncate">{doc.id}</div>
+                            </TableCell>
+                            <TableCell className="w-20 text-center">
+                              {doc.file_path && doc.file_path !== 'unknown_source' && (
+                                <div className="flex items-center justify-center gap-0.5">
+                                  <button
+                                    title="预览源文件"
+                                    className="inline-flex items-center justify-center size-7 rounded hover:bg-foreground/10 text-muted-foreground hover:text-cyan-400"
+                                    onClick={(e) => { e.stopPropagation(); setPreviewDoc({ id: doc.id, name: doc.file_path, kb: doc.kb_id }) }}
+                                  >
+                                    <ExternalLinkIcon className="size-4" />
+                                  </button>
+                                  <a
+                                    href={getDocumentDownloadUrl(doc.id, doc.kb_id)}
+                                    title="下载源文件"
+                                    className="inline-flex items-center justify-center size-7 rounded hover:bg-foreground/10 text-muted-foreground hover:text-emerald-400"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <DownloadIcon className="size-4" />
+                                  </a>
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell className="max-w-xs min-w-45 truncate overflow-visible">
                               <Tooltip>
@@ -1796,14 +1838,6 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
                                 </Tooltip>
                               </TableCell>
                             )}
-                            <TableCell className="text-center">
-                              <Checkbox
-                                checked={selectedDocIds.includes(doc.id)}
-                                onCheckedChange={(checked) => handleDocumentSelect(doc.id, checked === true)}
-                                // disabled={doc.status !== 'processed'}
-                                className="mx-auto"
-                              />
-                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

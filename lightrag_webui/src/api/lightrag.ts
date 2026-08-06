@@ -1126,6 +1126,8 @@ export interface UserInfo {
   locked: boolean
   permissions: string[]
   created_at: string
+  token_expires_at?: number | null
+  login_token?: string | null
 }
 
 export interface UserListResponse {
@@ -1191,6 +1193,51 @@ export const updateUserPermissions = async (
     { permissions }
   )
   return response.data
+}
+
+export interface UserTokenResponse {
+  access_token: string
+  token_type: string
+  username: string
+  role: string
+  expires_at?: number
+  expire_hours?: number
+}
+
+/** Generate a new JWT token for a user (admin only). */
+export const generateUserToken = async (
+  username: string,
+  expireHours?: number
+): Promise<UserTokenResponse> => {
+  const params = new URLSearchParams()
+  if (expireHours) params.set('expire_hours', String(expireHours))
+  const qs = params.toString()
+  const response = await axiosInstance.post(
+    `/users/${encodeURIComponent(username)}/token${qs ? '?' + qs : ''}`
+  )
+  return response.data
+}
+
+/** Get the raw API URL for a document's source file. */
+export const getDocumentFileUrl = (
+  docId: string,
+  workspace?: string
+): string => {
+  const params = new URLSearchParams()
+  if (workspace) params.set('workspace', workspace)
+  const qs = params.toString()
+  return `${backendBaseUrl}/documents/${encodeURIComponent(docId)}/file${qs ? '?' + qs : ''}`
+}
+
+/** Get the download URL for a document's source file. */
+export const getDocumentDownloadUrl = (
+  docId: string,
+  workspace?: string
+): string => {
+  const params = new URLSearchParams()
+  if (workspace) params.set('workspace', workspace)
+  params.set('download', '1')
+  return `${backendBaseUrl}/documents/${encodeURIComponent(docId)}/file?${params.toString()}`
 }
 
 /** Response from POST /graph/sweep_orphans */
@@ -1629,12 +1676,12 @@ export const getDocumentsPaginatedWithTimeout = (
         id: item.id,
         file_path: item.file_name,
         status: item.status as DocStatus,
-        chunk_count: item.chunk_count,
+        chunk_count: item.chunk_count ?? 0,
         size: item.size,
         updated_at: item.updated_at || '',
         multimodal: item.multimodal,
-        content_length: item.chunk_count,
-        content_summary: '',
+        content_length: (item as any).content_length ?? item.chunk_count ?? 0,
+        content_summary: (item as any).content_summary ?? '',
         kb_id: request.workspace,
         // Fields not available in KB doc list, set defaults
         created_at: item.updated_at || '',

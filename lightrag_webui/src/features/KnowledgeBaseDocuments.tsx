@@ -1,15 +1,15 @@
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  AlertTriangleIcon,
   CheckCircle2,
+  Download,
+  ExternalLink,
   FileText,
   Loader2,
   LoaderCircle,
   Plus,
   RefreshCw,
   Search,
-  Trash2,
   XCircle
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,7 +17,6 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import Button from '@/components/ui/Button'
 import Checkbox from '@/components/ui/Checkbox'
-import Input from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
 import {
   Table,
@@ -29,18 +28,12 @@ import {
 } from '@/components/ui/Table'
 import PaginationControls from '@/components/ui/PaginationControls'
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/Dialog'
-import {
   getKnowledgeBaseDocuments,
-  deleteKnowledgeBaseDocuments,
+  getDocumentDownloadUrl,
   type KnowledgeBaseDocument
 } from '@/api/lightrag'
+import DocxPreviewModal from '@/components/documents/DocxPreviewModal'
+import DeleteDocumentsDialog from '@/components/documents/DeleteDocumentsDialog'
 
 interface KnowledgeBaseDocumentsProps {
   kbId: string
@@ -132,16 +125,7 @@ export default function KnowledgeBaseDocuments({
   const [total, setTotal] = React.useState(0)
   const [statusCounts, setStatusCounts] = React.useState<Record<string, number>>({})
   const [loading, setLoading] = React.useState(true)
-
-  const [deleteTarget, setDeleteTarget] = React.useState<{
-    ids: string[]
-    names: string[]
-  } | null>(null)
-  const [deleting, setDeleting] = React.useState(false)
-  const [confirmText, setConfirmText] = React.useState('')
-  const [deleteFile, setDeleteFile] = React.useState(false)
-  const [deleteLLMCache, setDeleteLLMCache] = React.useState(false)
-  const isConfirmEnabled = confirmText.toLowerCase() === 'yes' && !deleting
+  const [previewDoc, setPreviewDoc] = React.useState<{ id: string; name: string } | null>(null)
 
   // Row selection for batch delete. Only current-page rows can be selected;
   // the header checkbox toggles the whole page at once.
@@ -245,30 +229,6 @@ export default function KnowledgeBaseDocuments({
     { key: 'failed', label: t('kbDetail.filter.failed', 'Failed'), count: statusCounts['failed'] ?? 0 }
   ]
 
-  const handleDelete = async () => {
-    if (!deleteTarget || deleteTarget.ids.length === 0) return
-    setDeleting(true)
-    try {
-      const res = await deleteKnowledgeBaseDocuments(
-        kbId,
-        deleteTarget.ids,
-        false,
-        { deleteFile, deleteLlmCache: deleteLLMCache }
-      )
-      toast.success(res.message || t('kbDetail.delete', 'Delete'))
-      setDeleteTarget(null)
-      setConfirmText('')
-      setDeleteFile(false)
-      setDeleteLLMCache(false)
-      setSelectedIds(new Set())
-      refresh()
-    } catch (err) {
-      toast.error(errorMessage(err) || 'Delete failed')
-    } finally {
-      setDeleting(false)
-    }
-  }
-
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
   return (
@@ -298,23 +258,14 @@ export default function KnowledgeBaseDocuments({
           </Button>
         )}
         {selectedIds.size > 0 && (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() =>
-              setDeleteTarget({
-                ids: [...selectedIds],
-                names: items.filter((d) => selectedIds.has(d.id)).map((d) => d.file_name)
-              })
-            }
-            className="gap-2"
-          >
-            <Trash2 className="size-4" />
-            {t('kbDetail.deleteSelected', 'Delete Selected ({{count}})').replace(
-              '{{count}}',
-              String(selectedIds.size)
-            )}
-          </Button>
+          <DeleteDocumentsDialog
+            selectedDocIds={[...selectedIds]}
+            kbId={kbId}
+            onDocumentsDeleted={async () => {
+              setSelectedIds(new Set())
+              refresh()
+            }}
+          />
         )}
       </div>
 
@@ -397,6 +348,25 @@ export default function KnowledgeBaseDocuments({
                     <span className="flex items-center gap-2">
                       <FileText className="text-muted-foreground size-4 shrink-0" />
                       {doc.file_name}
+                      {doc.file_name && (
+                        <>
+                          <button
+                            title="预览源文件"
+                            className="text-muted-foreground hover:text-cyan-400 shrink-0"
+                            onClick={(e) => { e.stopPropagation(); setPreviewDoc({ id: doc.id, name: doc.file_name }) }}
+                          >
+                            <ExternalLink className="size-3.5" />
+                          </button>
+                          <a
+                            href={getDocumentDownloadUrl(doc.id, kbId)}
+                            title="下载源文件"
+                            className="text-muted-foreground hover:text-emerald-400 shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Download className="size-3.5" />
+                          </a>
+                        </>
+                      )}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -408,17 +378,14 @@ export default function KnowledgeBaseDocuments({
                     {formatTime(doc.updated_at)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-muted-foreground hover:text-destructive"
-                      tooltip={t('kbDetail.delete', 'Delete')}
-                      onClick={() =>
-                        setDeleteTarget({ ids: [doc.id], names: [doc.file_name] })
-                      }
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <DeleteDocumentsDialog
+                      selectedDocIds={[doc.id]}
+                      kbId={kbId}
+                      onDocumentsDeleted={async () => {
+                        setSelectedIds(new Set())
+                        refresh()
+                      }}
+                    />
                   </TableCell>
                 </TableRow>
               ))
@@ -442,122 +409,14 @@ export default function KnowledgeBaseDocuments({
         />
       )}
 
-      {/* Delete confirm dialog (single row or batch) — mirrors the global
-          DeleteDocumentsDialog: type "yes" plus file/LLM-cache options. */}
-      <Dialog
-        open={!!deleteTarget}
-        onOpenChange={(o) => {
-          if (!o) {
-            setDeleteTarget(null)
-            setConfirmText('')
-            setDeleteFile(false)
-            setDeleteLLMCache(false)
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-xl" onCloseAutoFocus={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-red-500 font-bold dark:text-red-400">
-              <AlertTriangleIcon className="size-5" />
-              {t('kbDetail.deleteDocTitle', 'Delete document?')}
-            </DialogTitle>
-            <DialogDescription className="pt-2">
-              {deleteTarget && deleteTarget.ids.length > 1
-                ? t('kbDetail.deleteDocsConfirm', 'Delete {{count}} selected documents? This cannot be undone.').replace(
-                  '{{count}}',
-                  String(deleteTarget.ids.length)
-                )
-                : t('kbDetail.deleteDocConfirm', 'Delete "{{name}}"? This cannot be undone.').replace(
-                  '{{name}}',
-                  deleteTarget?.names[0] ?? ''
-                )}
-            </DialogDescription>
-          </DialogHeader>
+      <DocxPreviewModal
+        open={!!previewDoc}
+        docId={previewDoc?.id || ''}
+        fileName={previewDoc?.name || ''}
+        workspace={kbId}
+        onClose={() => setPreviewDoc(null)}
+      />
 
-          <div className="text-red-500 font-semibold dark:text-red-400">
-            {t('documentPanel.deleteDocuments.warning')}
-          </div>
-
-          <div className="mb-4">
-            {t('documentPanel.deleteDocuments.confirm', {
-              count: deleteTarget?.ids.length ?? 0
-            })}
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="kb-confirm-text" className="text-sm font-medium">
-                {t('documentPanel.deleteDocuments.confirmPrompt')}
-              </label>
-              <Input
-                id="kb-confirm-text"
-                value={confirmText}
-                onChange={(e) => setConfirmText(e.target.value)}
-                placeholder={t('documentPanel.deleteDocuments.confirmPlaceholder')}
-                className="w-full"
-                disabled={deleting}
-              />
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="kb-delete-file"
-                checked={deleteFile}
-                onChange={(e) => setDeleteFile(e.target.checked)}
-                disabled={deleting}
-                className="border-gray-300 h-4 w-4 rounded text-red-600 focus:ring-red-500"
-              />
-              <label
-                htmlFor="kb-delete-file"
-                className="text-sm font-medium cursor-pointer"
-              >
-                {t('documentPanel.deleteDocuments.deleteFileOption')}
-              </label>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="kb-delete-llm-cache"
-                checked={deleteLLMCache}
-                onChange={(e) => setDeleteLLMCache(e.target.checked)}
-                disabled={deleting}
-                className="border-gray-300 h-4 w-4 rounded text-red-600 focus:ring-red-500"
-              />
-              <label
-                htmlFor="kb-delete-llm-cache"
-                className="text-sm font-medium cursor-pointer"
-              >
-                {t('documentPanel.deleteDocuments.deleteLLMCacheOption')}
-              </label>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteTarget(null)}
-              disabled={deleting}
-            >
-              {t('common.cancel', 'Cancel')}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => void handleDelete()}
-              disabled={!isConfirmEnabled}
-            >
-              {deleting && <Loader2 className="size-4 animate-spin" />}
-              {deleteTarget && deleteTarget.ids.length > 1
-                ? t('kbDetail.deleteSelected', 'Delete Selected ({{count}})').replace(
-                  '{{count}}',
-                  String(deleteTarget.ids.length)
-                )
-                : t('kbDetail.delete', 'Delete')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

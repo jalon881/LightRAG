@@ -125,7 +125,15 @@
       "failed": "Delete Documents Failed:\n{{message}}",
       "error": "Delete Documents Failed:\n{{error}}",
       "busy": "Pipeline is busy, please try again later",
-      "notAllowed": "No permission to perform this operation"
+      "notAllowed": "No permission to perform this operation",
+      "tracking": "Deletion in progress...",
+      "progressTitle": "Deletion Progress",
+      "progressCompleted": "Deletion complete",
+      "progressClose": "Close",
+      "deletingDoc": "Deleting: {{current}}/{{total}}",
+      "completedCount": "{{count}}/{{total}} succeeded",
+      "failedCount": "{{count}}/{{total}} failed",
+      "stalled": "Deletion may be stalled, check pipeline status for details"
     },
     "selectDocuments": {
       "selectCurrentPage": "Select Current Page ({{count}})",
@@ -190,7 +198,8 @@
         "updated": "Updated",
         "metadata": "Metadata",
         "knowledgeBase": "Knowledge Base",
-        "select": "Select"
+        "select": "Select",
+        "source": "Source"
       },
       "filters": {
         "all": "All",
@@ -242,6 +251,7 @@
       "cancelInProgress": "Cancellation in progress...",
       "noActiveJob": "No active pipeline job",
       "pipelineNotRunning": "Pipeline not running",
+      "selectKbHint": "Select a specific knowledge base above to view its pipeline status",
       "cancelSuccess": "Pipeline cancellation requested",
       "cancelFailed": "Failed to cancel pipeline\n{{error}}",
       "cancelNotBusy": "Pipeline is not running, no need to cancel",
@@ -644,6 +654,7 @@
     "systemInfo": "System Information",
     "unknownUser": "Unknown user",
     "standardUser": "Standard User",
+    "superAdmin": "Super Admin",
     "accountHint": "Signed in to the RAG knowledge base server",
     "authMode": "Authentication Mode",
     "authEnabled": "Enabled",
@@ -667,6 +678,8 @@
     "colRole": "Role",
     "colStatus": "Status",
     "colPermissions": "Menu Permissions",
+    "colToken": "Token",
+    "colTokenExpiry": "Expiry",
     "colActions": "Actions",
     "locked": "Locked",
     "active": "Active",
@@ -707,6 +720,18 @@
     "passwordChangeFailed": "Failed to change password",
     "passwordsDoNotMatch": "Passwords do not match",
     "currentPasswordWrong": "Current password is incorrect",
-    "profile": "Profile"
+    "profile": "Profile",
+    "generateToken": "Generate Token",
+    "tokenTitle": "Access Token",
+    "tokenDescription": "Use this token in the Authorization header for API requests.",
+    "tokenUsage": "Usage",
+    "copyToken": "Copy Token",
+    "tokenCopied": "Token copied to clipboard",
+    "tokenCopyFailed": "Failed to copy",
+    "tokenFailed": "Failed to generate token",
+    "tokenSaved": "Token saved",
+    "saveToken": "Save & Use",
+    "saveTokenDone": "Save",
+    "tokenGenerating": "Generating..."
   }
 }

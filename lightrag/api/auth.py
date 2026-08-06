@@ -36,6 +36,7 @@ class TokenPayload(BaseModel):
     sub: str  # Username
     exp: datetime  # Expiration time
     role: str = "user"  # User role, default is regular user
+    token_version: int = 0  # Incremented when a new token is generated for the user
     metadata: dict = {}  # Additional metadata
 
 
@@ -112,11 +113,17 @@ class AuthHandler:
         # Known {bcrypt} account: the real verification already costs one bcrypt.
         return verify_password(plain_password, stored_password)
 
+    # In-memory cache of current token_version per user.
+    # Populated on-demand from the user data file; cleared when a new
+    # token is generated via the user management API.
+    _token_version_cache: dict[str, int] = {}
+
     def create_token(
         self,
         username: str,
         role: str = "user",
         custom_expire_hours: int = None,
+        token_version: int = 0,
         metadata: dict = None,
     ) -> str:
         """
@@ -126,6 +133,7 @@ class AuthHandler:
             username: Username
             role: User role, default is "user", guest is "guest"
             custom_expire_hours: Custom expiration time (hours), if None use default value
+            token_version: Token version; older versions are rejected on validation
             metadata: Additional metadata
 
         Returns:
@@ -144,7 +152,9 @@ class AuthHandler:
 
         # Create payload
         payload = TokenPayload(
-            sub=username, exp=expire, role=role, metadata=metadata or {}
+            sub=username, exp=expire, role=role,
+            token_version=token_version,
+            metadata=metadata or {}
         )
 
         return jwt.encode(payload.model_dump(), self.secret, algorithm=self.algorithm)
@@ -172,12 +182,33 @@ class AuthHandler:
                 )
             payload = jwt.decode(token, self.secret, algorithms=allowed_algorithms)
             expire_timestamp = payload["exp"]
-            expire_time = datetime.fromtimestamp(expire_timestamp, timezone.utc)
+            try:
+                expire_time = datetime.fromtimestamp(expire_timestamp, timezone.utc)
+            except (OSError, OverflowError, ValueError):
+                # Timestamp out of range for the platform (e.g. Windows 32-bit
+                # time_t limit).  A value this large means the token is set to
+                # essentially never expire; treat it as valid.
+                expire_time = datetime.max.replace(tzinfo=timezone.utc)
 
             if datetime.now(timezone.utc) > expire_time:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired"
                 )
+
+            # Check token_version against server-side user record.
+            # When an admin generates a new token for a user, the stored
+            # token_version is incremented so all old tokens become invalid.
+            token_version = payload.get("token_version", 0)
+            if token_version > 0:
+                stored_version = self._token_version_cache.get(payload["sub"])
+                if stored_version is None:
+                    # Lazy-load from user data file
+                    stored_version = self._load_user_token_version(payload["sub"])
+                if stored_version > token_version:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token has been superseded by a newer token",
+                    )
 
             # Return complete payload instead of just username
             return {
@@ -185,11 +216,60 @@ class AuthHandler:
                 "role": payload.get("role", "user"),
                 "metadata": payload.get("metadata", {}),
                 "exp": expire_time,
+                "token_version": token_version,
             }
         except jwt.PyJWTError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
             )
+
+    def _load_user_token_version(self, username: str) -> int:
+        """Load the current token_version for a user from the data file."""
+        try:
+            import json
+            from pathlib import Path
+            from .config import global_args as _cfg
+            path = Path(_cfg.working_dir) / ".user_data.json"
+            if path.exists():
+                users = json.loads(path.read_text(encoding="utf-8"))
+                for u in users:
+                    if u.get("username") == username:
+                        version = u.get("token_version", 0)
+                        self._token_version_cache[username] = version
+                        return version
+        except Exception:
+            pass
+        self._token_version_cache[username] = 0
+        return 0
+
+    @staticmethod
+    def bump_token_version(username: str) -> int:
+        """Increment and return the new token_version for a user.
+        Called by the user management API after generating a new token.
+        Also updates the in-memory cache.
+        """
+        try:
+            import json
+            from pathlib import Path
+            from .config import global_args as _cfg
+            path = Path(_cfg.working_dir) / ".user_data.json"
+            if not path.exists():
+                return 1
+            users = json.loads(path.read_text(encoding="utf-8"))
+            new_version = 0
+            for u in users:
+                if u.get("username") == username:
+                    new_version = u.get("token_version", 0) + 1
+                    u["token_version"] = new_version
+                    break
+            if new_version == 0:
+                return 1
+            path.write_text(json.dumps(users, ensure_ascii=False, indent=2), encoding="utf-8")
+            # Invalidate cache so next validation re-reads
+            auth_handler._token_version_cache.pop(username, None)
+            return new_version
+        except Exception:
+            return 1
 
 
 auth_handler = AuthHandler()

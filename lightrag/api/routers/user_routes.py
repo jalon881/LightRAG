@@ -78,6 +78,8 @@ class UserInfo(BaseModel):
     locked: bool
     permissions: List[str]
     created_at: str
+    token_expires_at: Optional[int] = None
+    login_token: Optional[str] = None
 
 
 class UserListResponse(BaseModel):
@@ -188,6 +190,8 @@ def create_user_routes(
                 locked=u.get("locked", False),
                 permissions=u.get("permissions", list(AVAILABLE_MENU_ITEMS)),
                 created_at=u.get("created_at", ""),
+                token_expires_at=u.get("token_expires_at"),
+                login_token=u.get("login_token"),
             )
             for u in users
         ]
@@ -248,6 +252,7 @@ def create_user_routes(
             locked=new_user["locked"],
             permissions=new_user["permissions"],
             created_at=new_user["created_at"],
+            token_expires_at=new_user.get("token_expires_at"),
         )
 
     @router.put("/{username}", response_model=UserInfo)
@@ -272,6 +277,7 @@ def create_user_routes(
             locked=user.get("locked", False),
             permissions=user.get("permissions", list(AVAILABLE_MENU_ITEMS)),
             created_at=user.get("created_at", ""),
+            token_expires_at=user.get("token_expires_at"),
         )
 
     @router.delete("/{username}")
@@ -314,6 +320,7 @@ def create_user_routes(
             locked=user["locked"],
             permissions=user.get("permissions", list(AVAILABLE_MENU_ITEMS)),
             created_at=user.get("created_at", ""),
+            token_expires_at=user.get("token_expires_at"),
         )
 
     @router.put("/{username}/permissions", response_model=UserInfo)
@@ -344,6 +351,71 @@ def create_user_routes(
             locked=user.get("locked", False),
             permissions=user["permissions"],
             created_at=user.get("created_at", ""),
+            token_expires_at=user.get("token_expires_at"),
         )
+
+    @router.post("/{username}/token")
+    async def generate_user_token(
+        username: str,
+        expire_hours: int | None = None,
+        _=Depends(auth_dependency),
+    ):
+        """Generate a new JWT token for the specified user.
+
+        Only accessible by authenticated admins. The generated token carries
+        the user's current role and permissions from .user_data.json.
+
+        Args:
+            username: The user to generate a token for.
+            expire_hours: Optional custom expiration in hours. Defaults to
+                the server-configured TOKEN_EXPIRE_HOURS (currently 720h = 30d).
+        """
+        from lightrag.api.auth import auth_handler
+        import jwt as pyjwt
+
+        users = await _read_users()
+        user = _find_user(users, username)
+        if not user:
+            raise HTTPException(
+                status_code=404, detail=f"User '{username}' not found"
+            )
+        if user.get("locked", False):
+            raise HTTPException(
+                status_code=403, detail=f"User '{username}' is locked, cannot generate token"
+            )
+
+        # Bump token_version to invalidate all previous tokens for this user
+        new_version = auth_handler.bump_token_version(username)
+
+        token = auth_handler.create_token(
+            username=username,
+            role=user.get("role", "user"),
+            custom_expire_hours=expire_hours,
+            token_version=new_version,
+        )
+
+        # Decode without verification to extract exp (the token was just created)
+        payload = pyjwt.decode(
+            token, auth_handler.secret, algorithms=[auth_handler.algorithm]
+        )
+        expires_at = payload.get("exp")
+
+        # Store token_expires_at, token_version, expire_hours, and the
+        # generated token itself in the user record so /login can return
+        # the admin-configured token instead of creating a new one.
+        user["token_expires_at"] = expires_at
+        user["token_version"] = new_version
+        user["token_expire_hours"] = expire_hours or auth_handler.expire_hours
+        user["login_token"] = token
+        await _write_users(users)
+
+        return {
+            "access_token": token,
+            "token_type": "bearer",
+            "username": username,
+            "role": user.get("role", "user"),
+            "expires_at": expires_at,
+            "expire_hours": expire_hours or auth_handler.expire_hours,
+        }
 
     return router

@@ -125,7 +125,15 @@
       "failed": "删除文档失败：\n{{message}}",
       "error": "删除文档失败：\n{{error}}",
       "busy": "流水线被占用，请稍后再试",
-      "notAllowed": "没有操作权限"
+      "notAllowed": "没有操作权限",
+      "tracking": "删除进行中...",
+      "progressTitle": "删除进度",
+      "progressCompleted": "删除完成",
+      "progressClose": "关闭",
+      "deletingDoc": "正在删除: {{current}}/{{total}}",
+      "completedCount": "成功 {{count}}/{{total}} 个",
+      "failedCount": "失败 {{count}}/{{total}} 个",
+      "stalled": "删除操作可能卡住，请查看上传文件日志进度查看详情"
     },
     "selectDocuments": {
       "selectCurrentPage": "全选当前页 ({{count}})",
@@ -190,7 +198,8 @@
         "updated": "更新时间",
         "metadata": "元数据",
         "knowledgeBase": "知识库",
-        "select": "选择"
+        "select": "选择",
+        "source": "源文件"
       },
       "filters": {
         "all": "全部",
@@ -242,6 +251,7 @@
       "cancelInProgress": "取消请求进行中...",
       "noActiveJob": "没有活跃的流水线作业",
       "pipelineNotRunning": "流水线未运行",
+      "selectKbHint": "请在上方选择具体知识库以查看其流水线状态",
       "cancelSuccess": "流水线中断请求已发送",
       "cancelFailed": "中断流水线失败\n{{error}}",
       "cancelNotBusy": "流水线未运行，无需中断",
@@ -644,6 +654,7 @@
     "systemInfo": "系统信息",
     "unknownUser": "未知用户",
     "standardUser": "标准用户",
+    "superAdmin": "超级管理员",
     "accountHint": "已登录 RAG知识库 服务",
     "authMode": "认证模式",
     "authEnabled": "已启用",
@@ -667,6 +678,8 @@
     "colRole": "角色",
     "colStatus": "状态",
     "colPermissions": "菜单权限",
+    "colToken": "令牌",
+    "colTokenExpiry": "过期时间",
     "colActions": "操作",
     "locked": "已锁定",
     "active": "活跃",
@@ -707,6 +720,18 @@
     "passwordChangeFailed": "密码修改失败",
     "passwordsDoNotMatch": "两次输入的密码不一致",
     "currentPasswordWrong": "当前密码错误",
-    "profile": "个人资料"
+    "profile": "个人资料",
+    "generateToken": "生成令牌",
+    "tokenTitle": "访问令牌",
+    "tokenDescription": "在 API 请求的 Authorization 头中使用此令牌。",
+    "tokenUsage": "用法",
+    "copyToken": "复制令牌",
+    "tokenCopied": "令牌已复制到剪贴板",
+    "tokenCopyFailed": "复制失败",
+    "tokenFailed": "生成令牌失败",
+    "tokenSaved": "令牌已保存",
+    "saveToken": "保存并使用",
+    "saveTokenDone": "保存",
+    "tokenGenerating": "生成中..."
   }
 }

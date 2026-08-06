@@ -88,7 +88,7 @@ export default function PipelineStatusDialog({
     fetchStatus()
     const interval = setInterval(fetchStatus, 2000)
     return () => clearInterval(interval)
-  }, [open, t])
+  }, [open, t, workspace])
 
   // Handle cancel pipeline confirmation
   const handleConfirmCancel = async () => {
@@ -209,6 +209,11 @@ export default function PipelineStatusDialog({
             {status && !status.busy ? (
               <div className="text-center text-muted-foreground py-4">
                 {t('documentPanel.pipelineStatus.pipelineNotRunning')}
+                {!workspace && (
+                  <div className="text-xs mt-1 text-muted-foreground/70">
+                    {t('documentPanel.pipelineStatus.selectKbHint', 'Select a specific knowledge base above to view its pipeline status')}
+                  </div>
+                )}
               </div>
             ) : (
               <>

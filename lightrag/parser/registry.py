@@ -182,7 +182,9 @@ _LEGACY_SUFFIXES = frozenset(
         "mdx",
         "pdf",
         "docx",
+        "doc",
         "pptx",
+        "ppt",
         "xls",
         "xlsx",
         "rtf",
@@ -218,6 +220,12 @@ _LEGACY_SUFFIXES = frozenset(
         "css",
         "scss",
         "less",
+        "png",
+        "jpg",
+        "jpeg",
+        "gif",
+        "bmp",
+        "webp",
     }
 )
 # Formats a MinerU endpoint handles out of the box. Which of the remaining

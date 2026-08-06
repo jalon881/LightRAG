@@ -38,7 +38,7 @@ interface AuthState {
   lastTokenRenewal: string | null; // Human-readable local time of last token renewal (for debugging and monitoring)
   tokenExpiresAt: number | null; // Token expiration timestamp (extracted from JWT)
 
-  login: (token: string, isGuest?: boolean, permissions?: string[] | null, coreVersion?: string | null, apiVersion?: string | null, webuiTitle?: string | null, webuiDescription?: string | null) => void;
+  login: (token: string, isGuest?: boolean, permissions?: string[] | null, coreVersion?: string | null, apiVersion?: string | null, webuiTitle?: string | null, webuiDescription?: string | null, expiresAt?: number | null) => void;
   logout: () => void;
   setVersion: (coreVersion: string | null, apiVersion: string | null) => void;
   setCustomTitle: (webuiTitle: string | null, webuiDescription: string | null) => void;
@@ -261,7 +261,7 @@ export const useAuthStore = create<AuthState>(set => {
     lastTokenRenewal: initialState.lastTokenRenewal,
     tokenExpiresAt: initialState.tokenExpiresAt,
 
-    login: (token, isGuest = false, permissions = null, coreVersion = null, apiVersion = null, webuiTitle = null, webuiDescription = null) => {
+    login: (token, isGuest = false, permissions = null, coreVersion = null, apiVersion = null, webuiTitle = null, webuiDescription = null, expiresAt = null as number | null) => {
       localStorage.setItem('LIGHTRAG-API-TOKEN', token);
 
       if (permissions != null) {
@@ -294,7 +294,9 @@ export const useAuthStore = create<AuthState>(set => {
       }
 
       const username = getUsernameFromToken(token);
-      const tokenExpiresAt = getTokenExpiresAt(token);
+      const tokenExpiresAt = expiresAt
+        ? expiresAt * 1000  // Server provides seconds, convert to ms
+        : getTokenExpiresAt(token);  // Fall back to JWT parsing
       const now = Date.now();
       const formattedTime = formatTimestampToLocalString(now);
 

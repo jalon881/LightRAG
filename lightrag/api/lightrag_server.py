@@ -10,7 +10,9 @@ from fastapi.openapi.docs import (
     get_swagger_ui_oauth2_redirect_html,
 )
 import asyncio
+from datetime import datetime, timezone
 import json
+import jwt
 import os
 import re
 import logging
@@ -2405,6 +2407,48 @@ def create_app(args):
         window_seconds=getattr(args, "login_lockout_window_seconds", 300.0),
     )
 
+    def _get_stored_login_token(username: str) -> str | None:
+        """Return the admin-generated stored token for the user if still valid.
+
+        Only returns the stored token if:
+        1. It exists in the user record
+        2. Its token_version matches the current stored version (not superseded)
+        3. It hasn't expired
+        """
+        import json as _json
+        user_data_path = _user_data_path()
+        if not user_data_path.exists():
+            return None
+        try:
+            raw = _json.loads(user_data_path.read_text(encoding="utf-8"))
+            for u in raw if isinstance(raw, list) else []:
+                if u.get("username") == username:
+                    stored = u.get("login_token")
+                    stored_ver = u.get("token_version", 0)
+                    if stored and stored_ver > 0:
+                        try:
+                            payload = jwt.decode(
+                                stored,
+                                auth_handler.secret,
+                                algorithms=[auth_handler.algorithm],
+                            )
+                            # Token must not be superseded by a newer admin-generated token
+                            token_ver = payload.get("token_version", 0)
+                            if token_ver != stored_ver:
+                                return None
+                            # Token must not be expired
+                            expire_time = datetime.fromtimestamp(
+                                payload["exp"], timezone.utc
+                            )
+                            if datetime.now(timezone.utc) <= expire_time:
+                                return stored
+                        except Exception:
+                            pass
+                    break
+        except Exception:
+            pass
+        return None
+
     @app.post("/login")
     async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
         username = form_data.username
@@ -2438,11 +2482,25 @@ def create_app(args):
                                         "permissions",
                                         ["dashboard", "knowledge-base", "documents", "knowledge-graph", "retrieval", "users"],
                                     )
-                                    user_token = auth_handler.create_token(
-                                        username=username,
-                                        role=user_role,
-                                        metadata={"auth_mode": "enabled"},
-                                    )
+                                    # Return the admin-generated stored token
+                                    # if available and still valid.
+                                    stored_token = _get_stored_login_token(username)
+                                    if stored_token:
+                                        user_token = stored_token
+                                    else:
+                                        stored_expire_hours = u.get("token_expire_hours")
+                                        if stored_expire_hours:
+                                            expire_hours = stored_expire_hours
+                                        elif user_role == "admin":
+                                            expire_hours = 8760
+                                        else:
+                                            expire_hours = None
+                                        user_token = auth_handler.create_token(
+                                            username=username,
+                                            role=user_role,
+                                            custom_expire_hours=expire_hours,
+                                            metadata={"auth_mode": "enabled"},
+                                        )
                                     return {
                                         "access_token": user_token,
                                         "token_type": "bearer",
@@ -2539,13 +2597,14 @@ def create_app(args):
             # key is fully idle, e.g. after a successful login).
             login_rate_limiter.release(rate_limit_key)
 
-        # Determine the user's role and permissions for the token
+        # Determine the user's role, permissions, and stored expiry for the token
         import json
 
         user_role = "user"
         user_permissions = [
             "dashboard", "knowledge-base", "documents", "knowledge-graph", "retrieval", "users",
         ]
+        stored_expire_hours = None
         user_data_path = _user_data_path()
         if user_data_path.exists():
             try:
@@ -2558,14 +2617,28 @@ def create_app(args):
                                 "permissions",
                                 ["dashboard", "knowledge-base", "documents", "knowledge-graph", "retrieval", "users"],
                             )
+                            stored_expire_hours = u.get("token_expire_hours")
                             break
             except Exception:
                 pass
 
-        # Regular user login
-        user_token = auth_handler.create_token(
-            username=username, role=user_role, metadata={"auth_mode": "enabled"}
-        )
+        # Return the admin-generated stored token if available and still valid.
+        stored_token = _get_stored_login_token(username)
+        if stored_token:
+            user_token = stored_token
+        else:
+            if stored_expire_hours:
+                expire_hours = stored_expire_hours
+            elif user_role == "admin":
+                expire_hours = 8760  # 1 year for admins
+            else:
+                expire_hours = None  # server default
+            user_token = auth_handler.create_token(
+                username=username,
+                role=user_role,
+                custom_expire_hours=expire_hours,
+                metadata={"auth_mode": "enabled"},
+            )
         return {
             "access_token": user_token,
             "token_type": "bearer",

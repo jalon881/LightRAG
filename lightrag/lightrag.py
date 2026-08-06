@@ -4522,6 +4522,14 @@ class LightRAG(_RoleLLMMixin, _StorageMigrationMixin, _PipelineMixin):
                             )
                         )
                         source_id_key = "source_id"
+                        # Entities that have a non-empty source_id but whose
+                        # entity_chunks row is missing: the source_id may
+                        # reference chunks that no longer exist (e.g. after a
+                        # document was re-imported with a different language,
+                        # overwriting full_entities). Verify chunk existence
+                        # before skipping — if ALL referenced chunks are gone,
+                        # the entity is truly orphaned.
+                        needs_chunk_check: list[tuple[str, list[str]]] = []
                         for name in missing_chunk_tracking:
                             nd = node_data.get(name)
                             if not nd:
@@ -4530,8 +4538,57 @@ class LightRAG(_RoleLLMMixin, _StorageMigrationMixin, _PipelineMixin):
                             elif not nd.get(source_id_key):
                                 # Node exists but has no source_id → orphan
                                 orphan_entities.append(name)
-                            # else: node has a non-empty source_id →
-                            # still references chunks; skip (not orphan)
+                            else:
+                                source_id_val = nd.get(source_id_key)
+                                if isinstance(source_id_val, str):
+                                    chunk_refs = [
+                                        c.strip()
+                                        for c in source_id_val.split(GRAPH_FIELD_SEP)
+                                        if c.strip()
+                                    ]
+                                    if chunk_refs:
+                                        needs_chunk_check.append((name, chunk_refs))
+                                        continue
+                                # source_id is empty or unparseable → orphan
+                                orphan_entities.append(name)
+
+                        if needs_chunk_check:
+                            # Collect all unique chunk ids to batch-check
+                            all_ref_chunks = list(
+                                {
+                                    cid
+                                    for _, refs in needs_chunk_check
+                                    for cid in refs
+                                }
+                            )
+                            existing_chunks: set[str] = set()
+                            if all_ref_chunks:
+                                try:
+                                    chunk_rows = await self.text_chunks.get_by_ids(
+                                        all_ref_chunks
+                                    )
+                                    if chunk_rows:
+                                        for cid, row in zip(
+                                            all_ref_chunks, chunk_rows
+                                        ):
+                                            if row:
+                                                existing_chunks.add(cid)
+                                except Exception:
+                                    logger.warning(
+                                        "Orphan sweep: failed to batch-check chunk "
+                                        "existence, falling back to conservative skip"
+                                    )
+                            if existing_chunks:
+                                for name, refs in needs_chunk_check:
+                                    if not any(
+                                        cid in existing_chunks for cid in refs
+                                    ):
+                                        # None of the referenced chunks exist
+                                        orphan_entities.append(name)
+                            else:
+                                # No chunks exist at all — all are orphans
+                                for name, _refs in needs_chunk_check:
+                                    orphan_entities.append(name)
 
                     if orphan_entities:
                         # Confirm they actually exist in the graph
@@ -4596,7 +4653,10 @@ class LightRAG(_RoleLLMMixin, _StorageMigrationMixin, _PipelineMixin):
 
                     # Second-chance check for edges whose relation_chunks
                     # row is missing: verify against the graph edge's own
-                    # source_id.
+                    # source_id. When source_id is non-empty, also verify
+                    # that the referenced chunks still exist — a stale
+                    # source_id pointing to deleted chunks does not save
+                    # the edge from being orphaned.
                     if missing_rel_tracking:
                         edge_dicts = [
                             {"src": s, "tgt": t} for s, t in missing_rel_tracking
@@ -4606,6 +4666,9 @@ class LightRAG(_RoleLLMMixin, _StorageMigrationMixin, _PipelineMixin):
                                 edge_dicts
                             )
                         )
+                        needs_rel_chunk_check: list[
+                            tuple[tuple[str, str], list[str]]
+                        ] = []
                         for pair in missing_rel_tracking:
                             key = tuple(sorted(pair))
                             edge_data = existing_edges.get(key)
@@ -4613,6 +4676,54 @@ class LightRAG(_RoleLLMMixin, _StorageMigrationMixin, _PipelineMixin):
                                 orphan_edges.append(pair)
                             elif not edge_data.get("source_id"):
                                 orphan_edges.append(pair)
+                            else:
+                                source_id_val = edge_data.get("source_id")
+                                if isinstance(source_id_val, str):
+                                    chunk_refs = [
+                                        c.strip()
+                                        for c in source_id_val.split(GRAPH_FIELD_SEP)
+                                        if c.strip()
+                                    ]
+                                    if chunk_refs:
+                                        needs_rel_chunk_check.append((pair, chunk_refs))
+                                        continue
+                                # source_id is empty or unparseable → orphan
+                                orphan_edges.append(pair)
+
+                        if needs_rel_chunk_check:
+                            all_rel_ref_chunks = list(
+                                {
+                                    cid
+                                    for _, refs in needs_rel_chunk_check
+                                    for cid in refs
+                                }
+                            )
+                            existing_rel_chunks: set[str] = set()
+                            if all_rel_ref_chunks:
+                                try:
+                                    chunk_rows = await self.text_chunks.get_by_ids(
+                                        all_rel_ref_chunks
+                                    )
+                                    if chunk_rows:
+                                        for cid, row in zip(
+                                            all_rel_ref_chunks, chunk_rows
+                                        ):
+                                            if row:
+                                                existing_rel_chunks.add(cid)
+                                except Exception:
+                                    logger.warning(
+                                        "Orphan sweep: failed to batch-check relation "
+                                        "chunk existence, falling back to conservative skip"
+                                    )
+                            if existing_rel_chunks:
+                                for pair, refs in needs_rel_chunk_check:
+                                    if not any(
+                                        cid in existing_rel_chunks for cid in refs
+                                    ):
+                                        orphan_edges.append(pair)
+                            else:
+                                for pair, _refs in needs_rel_chunk_check:
+                                    orphan_edges.append(pair)
 
                     if orphan_edges:
                         logger.info(
