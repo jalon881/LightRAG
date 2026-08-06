@@ -38,8 +38,7 @@ ENV PIP_INDEX_URL=$PYPI_MIRROR
 WORKDIR /app
 
 # Install system deps + uv + Rust (required by some wheels)
-# Use Tsinghua Debian mirror for faster apt in China.
-# Mount caches so repeated builds are instant.
+# Use Tsinghua mirrors for apt. Mount caches so repeated builds are instant.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     if [ "$USE_MIRROR" = "1" ]; then \
@@ -50,8 +49,19 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         curl \
         build-essential \
         pkg-config \
-    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust via rustup with China mirror + cache
+RUN --mount=type=cache,target=/root/.rustup \
+    --mount=type=cache,target=/root/.cargo \
+    if [ "$USE_MIRROR" = "1" ]; then \
+        export RUSTUP_DIST_SERVER=https://mirrors.tuna.tsinghua.edu.cn/rustup; \
+        export RUSTUP_UPDATE_ROOT=https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup; \
+    fi \
     && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
+
 RUN pip install --no-cache-dir uv
 
 ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
