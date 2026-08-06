@@ -35,6 +35,7 @@ PROJECT_DIR="${LIGHTRAG_PROJECT_DIR:-$SCRIPT_DIR}"
 COMPOSE_FILE="docker-compose.yml"
 LIGHTRAG_PORT="${LIGHTRAG_PORT:-9621}"
 BUILD_MODE=false
+MIRROR_MODE=false
 
 # Git 拉取配置
 GIT_REPO="${LIGHTRAG_GIT_REPO:-git@github.com:jalon881/LightRAG.git}"
@@ -113,6 +114,8 @@ parse_args() {
                 COMPOSE_FILE="$1"; shift ;;
             --build)
                 BUILD_MODE=true; shift ;;
+            --mirror)
+                MIRROR_MODE=true; shift ;;
             --git)
                 GIT_MODE=true; shift ;;
             --repo)
@@ -337,9 +340,21 @@ do_up() {
     log "启动 LightRAG 服务..."
     cd "$PROJECT_DIR"
 
+    # Build args for Chinese mirrors
+    local build_args=""
+    if [ "$MIRROR_MODE" = true ]; then
+        log "  镜像加速: 使用国内镜像源"
+        export BUN_CONFIG_REGISTRY="https://registry.npmmirror.com"
+        export UV_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+        export PIP_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+        export UV_PYPI_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
+        build_args="--build-arg USE_MIRROR=1 --build-arg BUN_MIRROR=https://registry.npmmirror.com --build-arg PYPI_MIRROR=https://pypi.tuna.tsinghua.edu.cn/simple"
+    fi
+
     if [ "$BUILD_MODE" = true ]; then
         log "  模式: 本地构建 + 启动"
-        $COMPOSE_CMD -f "$COMPOSE_FILE" up -d --build
+        $COMPOSE_CMD -f "$COMPOSE_FILE" build $build_args
+        $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
     else
         log "  模式: 使用已有镜像启动"
         $COMPOSE_CMD -f "$COMPOSE_FILE" up -d

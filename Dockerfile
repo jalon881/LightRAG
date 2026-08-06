@@ -5,6 +5,10 @@
 # cross-architecture emulation issues during multi-platform builds.
 FROM --platform=$BUILDPLATFORM oven/bun:1 AS frontend-builder
 
+ARG USE_MIRROR=0
+ARG BUN_MIRROR=https://registry.npmjs.org
+ENV BUN_CONFIG_REGISTRY=$BUN_MIRROR
+
 WORKDIR /app
 
 # Copy frontend source code
@@ -19,9 +23,15 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 # Python build stage - using uv for faster package installation
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
+# Mirror support: set ARGs for Chinese mirrors
+ARG USE_MIRROR=0
+ARG PYPI_MIRROR=https://pypi.org/simple
+
 ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_SYSTEM_PYTHON=1
 ENV UV_COMPILE_BYTECODE=1
+ENV UV_INDEX_URL=$PYPI_MIRROR
+ENV PIP_INDEX_URL=$PYPI_MIRROR
 
 WORKDIR /app
 
