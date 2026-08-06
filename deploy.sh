@@ -353,7 +353,7 @@ do_up() {
 
     if [ "$BUILD_MODE" = true ]; then
         log "  模式: 本地构建 + 启动"
-        $COMPOSE_CMD -f "$COMPOSE_FILE" build $build_args
+        $COMPOSE_CMD -f "$COMPOSE_FILE" build --progress=plain $build_args
         $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
     else
         log "  模式: 使用已有镜像启动"

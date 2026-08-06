@@ -64,7 +64,6 @@ ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
 
 RUN pip install --no-cache-dir uv
 
-ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
 ENV UV_INDEX_URL=$PYPI_MIRROR
 
 # Ensure shared data directory exists for uv caches
@@ -92,9 +91,11 @@ RUN --mount=type=cache,target=/root/.local/share/uv \
 
 # Prepare offline cache directory, pre-populate tiktoken data, and download the
 # pinned spaCy model wheels for the docx smart_heading engine parameter.
-# Use uv run to execute commands from the virtual environment
-RUN mkdir -p /app/data/tiktoken \
-    && uv run lightrag-download-cache --cache-dir /app/data/tiktoken --spacy --spacy-dir /app/spacy_models || status=$?; \
+# Use uv run to execute commands from the virtual environment.
+# Cache the spaCy downloads so repeated builds are instant.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    mkdir -p /app/data/tiktoken \
+    && PIP_INDEX_URL=$PYPI_MIRROR uv run lightrag-download-cache --cache-dir /app/data/tiktoken --spacy --spacy-dir /app/spacy_models || status=$?; \
     if [ -n "${status:-}" ] && [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then exit "$status"; fi
 
 # Final stage
