@@ -22,8 +22,9 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
     && bun install --frozen-lockfile \
     && bun run build
 
-# Python build stage - using uv for faster package installation
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+# Python build stage - use python slim as base, install uv via pip.
+# Avoids ghcr.io which has no Chinese mirror.
+FROM python:3.12-slim-bookworm AS builder
 
 # Mirror support: set ARGs for Chinese mirrors
 ARG USE_MIRROR=0
@@ -32,21 +33,22 @@ ARG PYPI_MIRROR=https://pypi.org/simple
 ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_SYSTEM_PYTHON=1
 ENV UV_COMPILE_BYTECODE=1
-ENV UV_INDEX_URL=$PYPI_MIRROR
 ENV PIP_INDEX_URL=$PYPI_MIRROR
 
 WORKDIR /app
 
-# Install system deps (Rust is required by some wheels)
+# Install system deps + uv + Rust (required by some wheels)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
         build-essential \
         pkg-config \
     && rm -rf /var/lib/apt/lists/* \
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && pip install --no-cache-dir uv
 
 ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
+ENV UV_INDEX_URL=$PYPI_MIRROR
 
 # Ensure shared data directory exists for uv caches
 RUN mkdir -p /root/.local/share/uv
@@ -86,10 +88,16 @@ FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-# Install uv for package management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Mirror support for final stage
+ARG USE_MIRROR=0
+ARG PYPI_MIRROR=https://pypi.org/simple
+ENV PIP_INDEX_URL=$PYPI_MIRROR
+
+# Install uv via pip (avoids ghcr.io dependency)
+RUN pip install --no-cache-dir uv
 
 ENV UV_SYSTEM_PYTHON=1
+ENV UV_INDEX_URL=$PYPI_MIRROR
 
 # Copy installed packages and application code
 COPY --from=builder /root/.local /root/.local
