@@ -309,9 +309,9 @@ update_code_from_git() {
     fi
 
     # 确保 docker-compose.yml 存在
-    if [ ! -f "$PROJECT_DIR/$COMPOSE_FILE" ]; then
+    if [ ! -f "$COMPOSE_FILE" ]; then
         warn "  $COMPOSE_FILE 不存在，尝试 docker-compose.yml"
-        COMPOSE_FILE="docker-compose.yml"
+        COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
     fi
 }
 
