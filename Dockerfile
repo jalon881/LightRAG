@@ -38,7 +38,11 @@ ENV PIP_INDEX_URL=$PYPI_MIRROR
 WORKDIR /app
 
 # Install system deps + uv + Rust (required by some wheels)
-RUN apt-get update \
+# Use Tsinghua Debian mirror for faster apt in China
+RUN if [ "$USE_MIRROR" = "1" ]; then \
+        sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources; \
+    fi \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         curl \
         build-essential \
