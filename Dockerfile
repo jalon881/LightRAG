@@ -15,6 +15,8 @@ WORKDIR /app
 COPY lightrag_webui/ ./lightrag_webui/
 
 # Build frontend assets for inclusion in the API package
+# Limit Node memory to avoid OOM on low-memory servers (1G-2G RAM)
+ENV NODE_OPTIONS="--max-old-space-size=512"
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     cd lightrag_webui \
     && bun install --frozen-lockfile \
