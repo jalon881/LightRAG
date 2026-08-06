@@ -81,7 +81,9 @@ export default function DeleteDocumentsDialog({
   // (which runs via setInterval with a stable closure) always calls
   // the current callback, not a stale one.
   const onDocumentsDeletedRef = useRef(onDocumentsDeleted)
-  onDocumentsDeletedRef.current = onDocumentsDeleted
+  useEffect(() => {
+    onDocumentsDeletedRef.current = onDocumentsDeleted
+  })
 
   const isConfirmEnabled = confirmText.toLowerCase() === 'yes' && phase !== 'initiating' && phase !== 'tracking'
 

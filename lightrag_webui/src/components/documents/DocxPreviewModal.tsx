@@ -4,7 +4,7 @@ import { X, Loader2, Download, Table } from 'lucide-react'
 import mammoth from 'mammoth'
 import * as XLSX from 'xlsx'
 import { getDocumentFileUrl, getDocumentDownloadUrl } from '@/api/lightrag'
-import Button from '@/components/ui/Button'
+
 
 interface DocxPreviewModalProps {
   open: boolean

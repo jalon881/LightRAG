@@ -1,23 +1,18 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
-  BadgeCheck,
   KeyRound,
   RefreshCw,
-  ShieldCheck,
   User as UserIcon,
   Users as UsersIcon,
-  UserCog,
   UserPlus,
   Lock,
   Unlock,
   Menu,
-  Shield,
   Pencil,
   Trash2,
   AlertCircle,
-  CheckCircle2,
-  XCircle
+  CheckCircle2
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -70,13 +65,6 @@ const MENU_FALLBACK_MAP: Record<string, string> = {
   'knowledge-graph': 'Knowledge Graph',
   retrieval: 'Retrieval',
   users: 'User Management'
-}
-
-function formatExpiry(expiresAt: number | null): string | null {
-  if (!expiresAt) return null
-  const d = new Date(expiresAt)
-  if (isNaN(d.getTime())) return null
-  return d.toLocaleString()
 }
 
 export default function UserManagement() {
@@ -150,11 +138,6 @@ export default function UserManagement() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchUsers()
   }, [fetchUsers])
-
-  const initials = useMemo(() => {
-    if (!username) return '?'
-    return username.slice(0, 1).toUpperCase()
-  }, [username])
 
   const isAdmin = role === 'admin'
 
