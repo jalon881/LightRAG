@@ -101,7 +101,10 @@ export default function UserManagement() {
   const [roleVersion, setRoleVersion] = useState(0)
   const [showToken, setShowToken] = useState(false)
   const toggleShowToken = () => setShowToken(v => !v)
-  const token = useMemo(() => localStorage.getItem('LIGHTRAG-API-TOKEN') || '', [roleVersion])
+  const token = useMemo(() => {
+    void roleVersion
+    return localStorage.getItem('LIGHTRAG-API-TOKEN') || ''
+  }, [roleVersion])
   const handleCopyOwnToken = async () => {
     try {
       await navigator.clipboard.writeText(token)
@@ -376,173 +379,173 @@ export default function UserManagement() {
 
       {/* User list (admin only) — placed first for prominence */}
       {isAdmin && (
-      <Card variant="glass" className="glass-sheen overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <UsersIcon className="text-primary size-4" aria-hidden="true" />
-            {t('userManagement.userList', 'User List')}
-          </CardTitle>
-          <Button onClick={() => { resetAddForm(); setShowAddDialog(true) }} size="sm" className="gap-2">
-            <UserPlus className="size-4" />
-            {t('userManagement.addUser', 'Add User')}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-              <RefreshCw className="size-4 animate-spin mr-2" />
-              {t('common.loading', 'Loading...')}
-            </div>
-          ) : users.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground text-sm">
-              <UserIcon className="size-10 mb-3 opacity-40" />
-              {t('userManagement.noUsers', 'No users yet')}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/50 text-left text-xs text-muted-foreground">
-                    <th className="pb-3 pl-2 font-medium">{t('userManagement.colUsername', 'Username')}</th>
-                    <th className="pb-3 font-medium">{t('userManagement.colRole', 'Role')}</th>
-                    <th className="pb-3 font-medium">{t('userManagement.colStatus', 'Status')}</th>
-                    <th className="pb-3 font-medium">{t('userManagement.colPermissions', 'Permissions')}</th>
-                    <th className="pb-3 font-medium">{t('userManagement.colToken', 'Token')}</th>
-                    <th className="pb-3 font-medium">{t('userManagement.colTokenExpiry', 'Expiry')}</th>
-                    <th className="pb-3 pr-2 text-right font-medium">{t('userManagement.colActions', 'Actions')}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/30">
-                  {users.map(user => (
-                    <tr key={user.username} className="hover:bg-foreground/5 transition-colors">
-                      <td className="py-3 pl-2">
-                        <div className="flex items-center gap-2">
-                          <UserIcon className="size-4 text-muted-foreground shrink-0" />
-                          <span className="font-medium">{user.username}</span>
-                          {user.username === username && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-cyan-500/30 text-cyan-400">
-                              {t('userManagement.currentAccount', 'You')}
-                            </Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3">
-                        <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="gap-1 text-xs">
-                          {user.role === 'admin' ? t('userManagement.superAdmin', 'Super Admin') : t('userManagement.standardUser', 'Standard User')}
-                        </Badge>
-                      </td>
-                      <td className="py-3">
-                        {user.locked ? (
-                          <Badge variant="destructive" className="gap-1 text-xs">
-                            <Lock className="size-3" />
-                            {t('userManagement.locked', 'Locked')}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="gap-1 text-xs border-emerald-500/30 text-emerald-400">
-                            <CheckCircle2 className="size-3" />
-                            {t('userManagement.active', 'Active')}
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {user.permissions.slice(0, 3).map(perm => (
-                            <Badge key={perm} variant="outline" className="text-[10px] px-1.5 py-0">
-                              {t(MENU_LABEL_MAP[perm] || perm, MENU_FALLBACK_MAP[perm] || perm)}
-                            </Badge>
-                          ))}
-                          {user.permissions.length > 3 && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                              +{user.permissions.length - 3}
-                            </Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3">
-                        {user.login_token ? (
-                          <code
-                            className="bg-muted/30 text-[11px] px-1.5 py-0.5 rounded cursor-default select-all"
-                            title={user.login_token}
-                          >
-                            {user.login_token.substring(0, 16)}...
-                          </code>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">-</span>
-                        )}
-                      </td>
-                      <td className="py-3">
-                        {user.token_expires_at ? (
-                          <span className="text-xs">
-                            {formatExpiry(user.token_expires_at * 1000)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 pr-2 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditDialog(user)}
-                            title={t('userManagement.editUser', 'Edit User')}
-                          >
-                            <Pencil className="size-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleToggleLock(user)}
-                            title={
-                              user.locked
-                                ? t('userManagement.unlockUser', 'Unlock User')
-                                : t('userManagement.lockUser', 'Lock User')
-                            }
-                            disabled={user.username === 'admin'}
-                          >
-                            {user.locked ? (
-                              <Unlock className="size-3.5 text-emerald-400" />
-                            ) : (
-                              <Lock className="size-3.5 text-amber-400" />
-                            )}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenPermissions(user)}
-                            title={t('userManagement.managePermissions', 'Manage Permissions')}
-                          >
-                            <Menu className="size-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => { setTokenExpireHours(user.role === 'admin' ? 8760 : 720); handleGenerateToken(user.username) }}
-                            title={t('userManagement.generateToken', 'Generate Token')}
-                            disabled={tokenGenerating || user.locked}
-                          >
-                            <KeyRound className="size-3.5 text-cyan-400" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openDeleteDialog(user)}
-                            title={t('userManagement.deleteUser', 'Delete User')}
-                            disabled={user.username === 'admin'}
-                            className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        </div>
-                      </td>
+        <Card variant="glass" className="glass-sheen overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <UsersIcon className="text-primary size-4" aria-hidden="true" />
+              {t('userManagement.userList', 'User List')}
+            </CardTitle>
+            <Button onClick={() => { resetAddForm(); setShowAddDialog(true) }} size="sm" className="gap-2">
+              <UserPlus className="size-4" />
+              {t('userManagement.addUser', 'Add User')}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                <RefreshCw className="size-4 animate-spin mr-2" />
+                {t('common.loading', 'Loading...')}
+              </div>
+            ) : users.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground text-sm">
+                <UserIcon className="size-10 mb-3 opacity-40" />
+                {t('userManagement.noUsers', 'No users yet')}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/50 text-left text-xs text-muted-foreground">
+                      <th className="pb-3 pl-2 font-medium">{t('userManagement.colUsername', 'Username')}</th>
+                      <th className="pb-3 font-medium">{t('userManagement.colRole', 'Role')}</th>
+                      <th className="pb-3 font-medium">{t('userManagement.colStatus', 'Status')}</th>
+                      <th className="pb-3 font-medium">{t('userManagement.colPermissions', 'Permissions')}</th>
+                      <th className="pb-3 font-medium">{t('userManagement.colToken', 'Token')}</th>
+                      <th className="pb-3 font-medium">{t('userManagement.colTokenExpiry', 'Expiry')}</th>
+                      <th className="pb-3 pr-2 text-right font-medium">{t('userManagement.colActions', 'Actions')}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </thead>
+                  <tbody className="divide-y divide-border/30">
+                    {users.map(user => (
+                      <tr key={user.username} className="hover:bg-foreground/5 transition-colors">
+                        <td className="py-3 pl-2">
+                          <div className="flex items-center gap-2">
+                            <UserIcon className="size-4 text-muted-foreground shrink-0" />
+                            <span className="font-medium">{user.username}</span>
+                            {user.username === username && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-cyan-500/30 text-cyan-400">
+                                {t('userManagement.currentAccount', 'You')}
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3">
+                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="gap-1 text-xs">
+                            {user.role === 'admin' ? t('userManagement.superAdmin', 'Super Admin') : t('userManagement.standardUser', 'Standard User')}
+                          </Badge>
+                        </td>
+                        <td className="py-3">
+                          {user.locked ? (
+                            <Badge variant="destructive" className="gap-1 text-xs">
+                              <Lock className="size-3" />
+                              {t('userManagement.locked', 'Locked')}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="gap-1 text-xs border-emerald-500/30 text-emerald-400">
+                              <CheckCircle2 className="size-3" />
+                              {t('userManagement.active', 'Active')}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {user.permissions.slice(0, 3).map(perm => (
+                              <Badge key={perm} variant="outline" className="text-[10px] px-1.5 py-0">
+                                {t(MENU_LABEL_MAP[perm] || perm, MENU_FALLBACK_MAP[perm] || perm)}
+                              </Badge>
+                            ))}
+                            {user.permissions.length > 3 && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                +{user.permissions.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3">
+                          {user.login_token ? (
+                            <code
+                              className="bg-muted/30 text-[11px] px-1.5 py-0.5 rounded cursor-default select-all"
+                              title={user.login_token}
+                            >
+                              {user.login_token.substring(0, 16)}...
+                            </code>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="py-3">
+                          {user.token_expires_at ? (
+                            <span className="text-xs">
+                              {formatExpiry(user.token_expires_at * 1000)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="py-3 pr-2 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditDialog(user)}
+                              title={t('userManagement.editUser', 'Edit User')}
+                            >
+                              <Pencil className="size-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleToggleLock(user)}
+                              title={
+                                user.locked
+                                  ? t('userManagement.unlockUser', 'Unlock User')
+                                  : t('userManagement.lockUser', 'Lock User')
+                              }
+                              disabled={user.username === 'admin'}
+                            >
+                              {user.locked ? (
+                                <Unlock className="size-3.5 text-emerald-400" />
+                              ) : (
+                                <Lock className="size-3.5 text-amber-400" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleOpenPermissions(user)}
+                              title={t('userManagement.managePermissions', 'Manage Permissions')}
+                            >
+                              <Menu className="size-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setTokenExpireHours(user.role === 'admin' ? 8760 : 720); handleGenerateToken(user.username) }}
+                              title={t('userManagement.generateToken', 'Generate Token')}
+                              disabled={tokenGenerating || user.locked}
+                            >
+                              <KeyRound className="size-3.5 text-cyan-400" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openDeleteDialog(user)}
+                              title={t('userManagement.deleteUser', 'Delete User')}
+                              disabled={user.username === 'admin'}
+                              className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* Account details + system info */}

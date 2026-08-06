@@ -182,186 +182,186 @@ export default function KnowledgeBaseList({
           </Button>
         </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-          <span className="ml-2">{t('common.loading', 'Loading…')}</span>
-        </div>
-      ) : items.length === 0 ? (
-        <Card variant="glass" className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-          <BookOpen className="size-10 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            {t('knowledgeBase.empty', 'No knowledge bases yet. Create your first one.')}
-          </p>
-          <Button variant="outline" onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            {t('knowledgeBase.new', 'New Knowledge Base')}
-          </Button>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((kb) => (
-            <Card
-              key={kb.id}
-              variant="glass"
-              interactive
-              className={cn(
-                'glass-sheen group relative overflow-hidden p-5',
-                activeId === kb.id && 'ring-2 ring-cyan-400/60'
-              )}
-              onClick={() => onOpen(kb.id)}
-            >
-              <div className="flex items-start gap-3">
-                <div className="bg-cyan-500/12 text-cyan-400 ring-cyan-500/22 flex size-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset">
-                  <BookOpen className="size-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{kb.name || kb.id}</p>
-                  <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
-                    <FileText className="size-3.5" />
-                    {kb.document_count.toLocaleString()}{' '}
-                    {t('knowledgeBase.docs', 'documents')}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  aria-label={t('knowledgeBase.rename', 'Rename')}
-                  title={t('knowledgeBase.rename', 'Rename')}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setRenameTarget(kb)
-                    setRenameValue(kb.name || kb.id)
-                  }}
-                  className="text-muted-foreground hover:text-cyan-400 rounded-md p-1.5 transition-colors"
-                >
-                  <Pencil className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={t('knowledgeBase.delete', 'Delete')}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setPendingDelete(kb)
-                  }}
-                  className="text-muted-foreground hover:text-rose-400 rounded-md p-1.5 transition-colors"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-              <div className="mt-4 flex items-center justify-end text-sm font-medium text-cyan-400">
-                {t('knowledgeBase.open', 'Open')}
-                <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Create dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('knowledgeBase.new', 'New Knowledge Base')}</DialogTitle>
-            <DialogDescription>
-              {t(
-                'knowledgeBase.newHint',
-                'The ID becomes the workspace name. Use letters, numbers, hyphens and underscores.'
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <label className="text-sm font-medium">
-              {t('knowledgeBase.id', 'Knowledge Base ID')}
-            </label>
-            <Input
-              autoFocus
-              value={newId}
-              placeholder="safety-standards"
-              onChange={(e) => setNewId(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleCreate()
-              }}
-            />
+        {loading ? (
+          <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            <span className="ml-2">{t('common.loading', 'Loading…')}</span>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              {t('common.cancel', 'Cancel')}
+        ) : items.length === 0 ? (
+          <Card variant="glass" className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <BookOpen className="size-10 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              {t('knowledgeBase.empty', 'No knowledge bases yet. Create your first one.')}
+            </p>
+            <Button variant="outline" onClick={() => setCreateOpen(true)}>
+              <Plus className="size-4" />
+              {t('knowledgeBase.new', 'New Knowledge Base')}
             </Button>
-            <Button onClick={() => void handleCreate()} disabled={creating}>
-              {creating && <Loader2 className="size-4 animate-spin" />}
-              {t('knowledgeBase.create', 'Create')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Rename dialog */}
-      <Dialog
-        open={!!renameTarget}
-        onOpenChange={(o) => {
-          if (!o) setRenameTarget(null)
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('knowledgeBase.renameTitle', 'Rename knowledge base')}</DialogTitle>
-            <DialogDescription>
-              {t(
-                'knowledgeBase.renameHint',
-                'Changes the display name only; the workspace id stays unchanged.'
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <label className="text-sm font-medium">
-              {t('knowledgeBase.name', 'Name')}
-            </label>
-            <Input
-              autoFocus
-              value={renameValue}
-              placeholder={renameTarget?.id ?? ''}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleRename()
-              }}
-            />
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((kb) => (
+              <Card
+                key={kb.id}
+                variant="glass"
+                interactive
+                className={cn(
+                  'glass-sheen group relative overflow-hidden p-5',
+                  activeId === kb.id && 'ring-2 ring-cyan-400/60'
+                )}
+                onClick={() => onOpen(kb.id)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="bg-cyan-500/12 text-cyan-400 ring-cyan-500/22 flex size-11 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset">
+                    <BookOpen className="size-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{kb.name || kb.id}</p>
+                    <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-xs">
+                      <FileText className="size-3.5" />
+                      {kb.document_count.toLocaleString()}{' '}
+                      {t('knowledgeBase.docs', 'documents')}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={t('knowledgeBase.rename', 'Rename')}
+                    title={t('knowledgeBase.rename', 'Rename')}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRenameTarget(kb)
+                      setRenameValue(kb.name || kb.id)
+                    }}
+                    className="text-muted-foreground hover:text-cyan-400 rounded-md p-1.5 transition-colors"
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t('knowledgeBase.delete', 'Delete')}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setPendingDelete(kb)
+                    }}
+                    className="text-muted-foreground hover:text-rose-400 rounded-md p-1.5 transition-colors"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+                <div className="mt-4 flex items-center justify-end text-sm font-medium text-cyan-400">
+                  {t('knowledgeBase.open', 'Open')}
+                  <ChevronRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </Card>
+            ))}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameTarget(null)}>
-              {t('common.cancel', 'Cancel')}
-            </Button>
-            <Button onClick={() => void handleRename()} disabled={renaming}>
-              {renaming && <Loader2 className="size-4 animate-spin" />}
-              {t('knowledgeBase.save', 'Save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        )}
 
-      {/* Delete confirm */}
-      <Dialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('knowledgeBase.deleteTitle', 'Delete knowledge base?')}</DialogTitle>
-            <DialogDescription>
-              {t('knowledgeBase.deleteConfirm', 'This permanently removes all data in "{{id}}".').replace(
-                '{{id}}',
-                pendingDelete?.id ?? ''
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingDelete(null)}>
-              {t('common.cancel', 'Cancel')}
-            </Button>
-            <Button variant="destructive" onClick={() => void handleDelete()} disabled={deleting}>
-              {deleting && <Loader2 className="size-4 animate-spin" />}
-              {t('knowledgeBase.delete', 'Delete')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+        {/* Create dialog */}
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('knowledgeBase.new', 'New Knowledge Base')}</DialogTitle>
+              <DialogDescription>
+                {t(
+                  'knowledgeBase.newHint',
+                  'The ID becomes the workspace name. Use letters, numbers, hyphens and underscores.'
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-2">
+              <label className="text-sm font-medium">
+                {t('knowledgeBase.id', 'Knowledge Base ID')}
+              </label>
+              <Input
+                autoFocus
+                value={newId}
+                placeholder="safety-standards"
+                onChange={(e) => setNewId(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleCreate()
+                }}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>
+                {t('common.cancel', 'Cancel')}
+              </Button>
+              <Button onClick={() => void handleCreate()} disabled={creating}>
+                {creating && <Loader2 className="size-4 animate-spin" />}
+                {t('knowledgeBase.create', 'Create')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Rename dialog */}
+        <Dialog
+          open={!!renameTarget}
+          onOpenChange={(o) => {
+            if (!o) setRenameTarget(null)
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('knowledgeBase.renameTitle', 'Rename knowledge base')}</DialogTitle>
+              <DialogDescription>
+                {t(
+                  'knowledgeBase.renameHint',
+                  'Changes the display name only; the workspace id stays unchanged.'
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-2">
+              <label className="text-sm font-medium">
+                {t('knowledgeBase.name', 'Name')}
+              </label>
+              <Input
+                autoFocus
+                value={renameValue}
+                placeholder={renameTarget?.id ?? ''}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleRename()
+                }}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRenameTarget(null)}>
+                {t('common.cancel', 'Cancel')}
+              </Button>
+              <Button onClick={() => void handleRename()} disabled={renaming}>
+                {renaming && <Loader2 className="size-4 animate-spin" />}
+                {t('knowledgeBase.save', 'Save')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete confirm */}
+        <Dialog open={!!pendingDelete} onOpenChange={(o) => !o && setPendingDelete(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t('knowledgeBase.deleteTitle', 'Delete knowledge base?')}</DialogTitle>
+              <DialogDescription>
+                {t('knowledgeBase.deleteConfirm', 'This permanently removes all data in "{{id}}".').replace(
+                  '{{id}}',
+                  pendingDelete?.id ?? ''
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPendingDelete(null)}>
+                {t('common.cancel', 'Cancel')}
+              </Button>
+              <Button variant="destructive" onClick={() => void handleDelete()} disabled={deleting}>
+                {deleting && <Loader2 className="size-4 animate-spin" />}
+                {t('knowledgeBase.delete', 'Delete')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   )
 }

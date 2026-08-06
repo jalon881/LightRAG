@@ -23,7 +23,7 @@ export default function DocxPreviewModal({
 }: DocxPreviewModalProps) {
   type RenderMode = 'html' | 'pdf' | 'excel' | 'image'
 
-const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
+  const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
 
   const { t } = useTranslation()
   const [html, setHtml] = useState('')
