@@ -186,11 +186,13 @@ check_deps() {
         fi
     fi
 
-    # .env
+    # .env — MUST be at $PROJECT_DIR/.env (e.g. /opt/lightrag/.env)
     if [ -f "$PROJECT_DIR/.env" ]; then
-        log "  ✓ .env 已就绪"
+        log "  ✓ .env 已就绪 ($PROJECT_DIR/.env)"
     else
-        warn "  .env 不存在（启动前必须配置 LLM 参数）"
+        err "  .env 不存在: $PROJECT_DIR/.env"
+        err "  请先创建并编辑 .env: cp env.example .env && vi .env"
+        exit 1
     fi
 }
 
