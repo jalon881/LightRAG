@@ -7,6 +7,8 @@ for offline environments where internet access is not available.
 
 import os
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -102,16 +104,20 @@ def download_spacy_models(spacy_dir: str = None, install: bool = False, mirror: 
             ]
             action = "Downloading"
         try:
+            started = time.time()
+            ts = datetime.now().strftime("%H:%M:%S")
             print(
-                f"[{i}/{len(SPACY_MODEL_WHEELS)}] {action} {name}...",
+                f"[{i}/{len(SPACY_MODEL_WHEELS)}] [{ts}] {action} {name}...",
                 end=" ",
                 flush=True,
             )
             subprocess.run(cmd, check=True, capture_output=True, text=True)
-            print("✓ Done")
+            elapsed = time.time() - started
+            print(f"✓ Done ({elapsed:.0f}s)")
             success_count += 1
         except subprocess.CalledProcessError as e:
-            print("✗ Failed")
+            elapsed = time.time() - started
+            print(f"✗ Failed ({elapsed:.0f}s)")
             detail = (e.stderr or e.stdout or str(e)).strip().splitlines()
             failed_models.append((name, detail[-1] if detail else str(e)))
 
