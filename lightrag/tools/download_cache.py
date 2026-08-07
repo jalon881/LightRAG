@@ -77,6 +77,17 @@ def download_spacy_models(spacy_dir: str = None, install: bool = False, mirror: 
             cmd = [sys.executable, "-m", "pip", "install", resolved_url]
             action = "Installing"
         else:
+            # Check if wheel already exists in destination
+            wheel_filename = resolved_url.rsplit("/", 1)[-1]
+            if (Path(spacy_dir) / wheel_filename).exists():
+                print(
+                    f"[{i}/{len(SPACY_MODEL_WHEELS)}] {action} {name}...",
+                    end=" ",
+                    flush=True,
+                )
+                print("✓ Already cached")
+                success_count += 1
+                continue
             cmd = [
                 sys.executable,
                 "-m",

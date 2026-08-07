@@ -105,6 +105,7 @@ RUN --mount=type=cache,target=/root/.local/share/uv \
 # Use uv run to execute commands from the virtual environment.
 # Cache the spaCy downloads so repeated builds are instant.
 RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/app/spacy_models \
     mkdir -p /app/data/tiktoken \
     && PIP_INDEX_URL=$PYPI_MIRROR uv run lightrag-download-cache --cache-dir /app/data/tiktoken --spacy --spacy-dir /app/spacy_models || status=$?; \
     if [ -n "${status:-}" ] && [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then exit "$status"; fi
