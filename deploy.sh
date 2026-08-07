@@ -327,6 +327,46 @@ prepare_dirs() {
     log "  ✓ 数据目录已就绪"
 }
 
+# ==================== 前端预构建 ====================
+# 在服务器主机上构建前端，避免 Docker 内 Vite build OOM
+
+build_frontend_if_needed() {
+    local webui_dir="$PROJECT_DIR/lightrag_webui"
+    local output_dir="$PROJECT_DIR/lightrag/api/webui"
+
+    if [ -f "$output_dir/index.html" ]; then
+        log "  ✓ 前端已有预构建产物，跳过"
+        return 0
+    fi
+
+    log "  前端未预构建，尝试在主机上构建..."
+
+    if command -v bun >/dev/null 2>&1; then
+        log "  使用 bun 构建前端..."
+        cd "$webui_dir"
+        bun install --frozen-lockfile && bun run build
+        cd "$PROJECT_DIR"
+        if [ -f "$output_dir/index.html" ]; then
+            log "  ✓ 前端构建完成 (bun)"
+            return 0
+        fi
+    fi
+
+    if command -v npm >/dev/null 2>&1; then
+        log "  使用 npm 构建前端..."
+        cd "$webui_dir"
+        npm install && npx vite build
+        cd "$PROJECT_DIR"
+        if [ -f "$output_dir/index.html" ]; then
+            log "  ✓ 前端构建完成 (npm)"
+            return 0
+        fi
+    fi
+
+    warn "  主机上未安装 bun/npm，前端将在 Docker 内构建（可能需要较多内存）"
+    return 0
+}
+
 # ==================== 核心操作 ====================
 
 do_pull() {
@@ -474,6 +514,7 @@ main() {
                 BUILD_MODE=true  # git 模式必须本地构建
             fi
             prepare_dirs
+            build_frontend_if_needed
             do_up
             cleanup_images
             ;;

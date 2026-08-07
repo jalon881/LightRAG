@@ -36,6 +36,10 @@ Makefile
 /rag_storage
 /inputs
 
+# Bun / Node (installed inside Docker, do not upload from host)
+**/node_modules/
+**/bun.lockb
+
 # Python version manager file
 .python-version
 
