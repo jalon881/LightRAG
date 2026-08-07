@@ -8,7 +8,7 @@ for offline environments where internet access is not available.
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
 
@@ -105,7 +105,7 @@ def download_spacy_models(spacy_dir: str = None, install: bool = False, mirror: 
             action = "Downloading"
         try:
             started = time.time()
-            ts = datetime.now().strftime("%H:%M:%S")
+            ts = (datetime.now(timezone.utc) + timedelta(hours=8)).strftime("%H:%M:%S")
             print(
                 f"[{i}/{len(SPACY_MODEL_WHEELS)}] [{ts}] {action} {name}...",
                 end=" ",
