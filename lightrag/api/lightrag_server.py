@@ -91,7 +91,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from lightrag.api.auth import auth_handler
 from lightrag.api.login_rate_limit import LoginRateLimiter
 from lightrag.api.passwords import verify_password as verify_bcrypt_password
-from lightrag.api.routers.user_routes import _user_data_path
+from lightrag.api.routers.user_routes import _user_data_path, _read_users
 
 # use the .env that is inside the current folder
 # allows to use different .env file for each lightrag instance
@@ -2597,30 +2597,27 @@ def create_app(args):
             # key is fully idle, e.g. after a successful login).
             login_rate_limiter.release(rate_limit_key)
 
-        # Determine the user's role, permissions, and stored expiry for the token
-        import json
-
+        # Determine the user's role, permissions, and stored expiry for the token.
+        # Use _read_users() (not direct JSON read) so the file is auto-created
+        # with the default admin (role="admin") when it doesn't exist yet.
         user_role = "user"
         user_permissions = [
             "dashboard", "knowledge-base", "documents", "knowledge-graph", "retrieval", "users",
         ]
         stored_expire_hours = None
-        user_data_path = _user_data_path()
-        if user_data_path.exists():
-            try:
-                raw = json.loads(user_data_path.read_text(encoding="utf-8"))
-                if isinstance(raw, list):
-                    for u in raw:
-                        if u.get("username") == username:
-                            user_role = u.get("role", "user")
-                            user_permissions = u.get(
-                                "permissions",
-                                ["dashboard", "knowledge-base", "documents", "knowledge-graph", "retrieval", "users"],
-                            )
-                            stored_expire_hours = u.get("token_expire_hours")
-                            break
-            except Exception:
-                pass
+        try:
+            users = await _read_users()
+            for u in users:
+                if u.get("username") == username:
+                    user_role = u.get("role", "user")
+                    user_permissions = u.get(
+                        "permissions",
+                        ["dashboard", "knowledge-base", "documents", "knowledge-graph", "retrieval", "users"],
+                    )
+                    stored_expire_hours = u.get("token_expire_hours")
+                    break
+        except Exception:
+            pass
 
         # Return the admin-generated stored token if available and still valid.
         stored_token = _get_stored_login_token(username)
