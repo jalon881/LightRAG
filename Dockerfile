@@ -22,7 +22,7 @@ COPY lightrag_webui/ ./lightrag_webui/
 
 # Build frontend assets for inclusion in the API package
 # Limit Node memory to avoid OOM on low-memory servers (1G-2G RAM)
-ENV NODE_OPTIONS="--max-old-space-size=512"
+ENV NODE_OPTIONS="--max-old-space-size=256"
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     cd lightrag_webui \
     && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun install --frozen-lockfile \

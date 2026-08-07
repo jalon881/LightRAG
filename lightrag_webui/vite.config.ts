@@ -70,6 +70,10 @@ export default defineConfig(({ mode }) => {
       outDir: path.resolve(__dirname, '../lightrag/api/webui'),
       emptyOutDir: true,
       chunkSizeWarningLimit: 3800,
+      // Split large chunks to reduce peak memory during build on low-RAM servers
+      rolldownOptions: {
+        output: { codeSplitting: true }
+      },
       rollupOptions: {
         // Let Vite handle chunking automatically to avoid circular dependency issues
         output: {
