@@ -175,7 +175,10 @@ ENV PROMPT_DIR=/app/data/prompts
 # Fixed UID/GID 1000 gives predictable ownership for bind-mounts / PVCs.
 # chown -R /app MUST run after every data COPY above so the venv (pipmaster
 # installs packages at runtime), data dirs, and the tiktoken cache are writable.
-RUN apt-get update \
+RUN if [ "$USE_MIRROR" = "1" ]; then \
+        sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources; \
+    fi \
+    && apt-get update \
     && apt-get install -y --no-install-recommends gosu \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1000 lightrag \

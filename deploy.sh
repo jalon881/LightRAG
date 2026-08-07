@@ -410,12 +410,20 @@ download_spacy_models_if_needed() {
     for url in "${SPACY_MODELS[@]}"; do
         local fname="${url##*/}"
         if [ -f "$dest/$fname" ]; then
-            log "    ✓ $fname 已存在"
-            continue
+            # Validate: minimum wheel size is ~10MB; anything smaller is truncated
+            local fsize
+            fsize=$(stat -c%s "$dest/$fname" 2>/dev/null || stat -f%z "$dest/$fname" 2>/dev/null || echo 0)
+            if [ "$fsize" -gt 10000000 ]; then
+                log "    ✓ $fname 已存在 ($((fsize / 1024 / 1024))MB)"
+                continue
+            else
+                log "    ⚠ $fname 文件不完整 (${fsize} bytes)，重新下载"
+                rm -f "$dest/$fname"
+            fi
         fi
         log "    ⏳ 下载 $fname ..."
-        # Try wget first, fall back to curl
-        wget -q --show-progress --timeout=600 -O "$dest/$fname" "$url" 2>/dev/null \
+        # Try wget with resume support first, fall back to curl
+        wget -c -q --show-progress --timeout=600 -O "$dest/$fname" "$url" 2>/dev/null \
             || curl -fSL --connect-timeout 30 --max-time 600 -o "$dest/$fname" "$url" \
             || { warn "    ✗ $fname 下载失败"; }
     done
