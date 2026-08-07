@@ -43,8 +43,10 @@ ARG SPACY_DOWNLOAD_MIRROR
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV UV_SYSTEM_PYTHON=1
-ENV UV_COMPILE_BYTECODE=1
 ENV PIP_INDEX_URL=$PYPI_MIRROR
+# Skip bytecode compilation on project install (~45s saving per build change).
+# .pyc files are generated lazily at runtime with negligible first-request overhead.
+ENV UV_NO_COMPILE_BYTECODE=1
 
 WORKDIR /app
 
