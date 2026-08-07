@@ -100,13 +100,21 @@ RUN --mount=type=cache,target=/root/.local/share/uv \
     uv sync --frozen --no-dev --extra api --extra offline --no-editable \
     && /app/.venv/bin/python -m ensurepip --upgrade
 
+# Pre-downloaded spaCy wheels (deploy.sh downloads them on the host for speed).
+# Directory is gitignored — empty on a fresh clone, populated by deploy.sh.
+COPY spacy_wheels/ /tmp/spacy_wheels/
+
 # Prepare offline cache directory, pre-populate tiktoken data, and download the
 # pinned spaCy model wheels for the docx smart_heading engine parameter.
 # Use uv run to execute commands from the virtual environment.
-# Cache the spaCy downloads so repeated builds are instant.
+# Copy pre-downloaded wheels into the cache so they are reused.
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/app/spacy_models \
-    mkdir -p /app/data/tiktoken \
+    mkdir -p /app/data/tiktoken /app/spacy_models \
+    && if ls /tmp/spacy_wheels/*.whl >/dev/null 2>&1; then \
+         cp /tmp/spacy_wheels/*.whl /app/spacy_models/; \
+         echo "Copied pre-downloaded spaCy wheels"; \
+       fi \
     && PIP_INDEX_URL=$PYPI_MIRROR uv run lightrag-download-cache --cache-dir /app/data/tiktoken --spacy --spacy-dir /app/spacy_models || status=$?; \
     if [ -n "${status:-}" ] && [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then exit "$status"; fi
 

@@ -379,6 +379,60 @@ build_frontend_if_needed() {
     return 0
 }
 
+# ==================== spaCy 模型预下载 ====================
+# 在主机上下载 spaCy 模型 wheel，避免 Docker 内慢速 GitHub 下载。
+# 下载一次后 Dockerfile 的 _download_cache.py 检测到已存在就跳过。
+
+SPACY_MODELS=(
+    "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+    "https://github.com/explosion/spacy-models/releases/download/zh_core_web_sm-3.8.0/zh_core_web_sm-3.8.0-py3-none-any.whl"
+)
+
+download_spacy_models_if_needed() {
+    local dest="$PROJECT_DIR/spacy_wheels"
+    mkdir -p "$dest"
+
+    local all_cached=true
+    for url in "${SPACY_MODELS[@]}"; do
+        local fname="${url##*/}"
+        if [ ! -f "$dest/$fname" ]; then
+            all_cached=false
+            break
+        fi
+    done
+
+    if $all_cached; then
+        log "  ✓ spaCy 模型已预下载，跳过"
+        return 0
+    fi
+
+    log "  预下载 spaCy 模型到主机（避免 Docker 内慢速下载）..."
+    for url in "${SPACY_MODELS[@]}"; do
+        local fname="${url##*/}"
+        if [ -f "$dest/$fname" ]; then
+            log "    ✓ $fname 已存在"
+            continue
+        fi
+        log "    ⏳ 下载 $fname ..."
+        # Try wget first, fall back to curl
+        wget -q --show-progress --timeout=600 -O "$dest/$fname" "$url" 2>/dev/null \
+            || curl -fSL --connect-timeout 30 --max-time 600 -o "$dest/$fname" "$url" \
+            || { warn "    ✗ $fname 下载失败"; }
+    done
+
+    # Download spacy-pkuseg via pip (PyPI mirror, fast)
+    local pkuseg_file=$(ls "$dest"/spacy_pkuseg-*.whl 2>/dev/null | head -1)
+    if [ -z "$pkuseg_file" ]; then
+        log "    ⏳ 下载 spacy-pkuseg ..."
+        pip download --no-deps --timeout 60 --dest "$dest" spacy-pkuseg==1.0.1 \
+            -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null \
+            || pip download --no-deps --timeout 60 --dest "$dest" spacy-pkuseg==1.0.1 2>/dev/null \
+            || warn "    ✗ spacy-pkuseg 下载失败"
+    fi
+
+    log "  ✓ spaCy 模型预下载完成"
+}
+
 # ==================== 核心操作 ====================
 
 do_pull() {
@@ -527,6 +581,7 @@ main() {
             fi
             prepare_dirs
             build_frontend_if_needed
+            download_spacy_models_if_needed
             do_up
             cleanup_images
             ;;
