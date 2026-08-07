@@ -111,6 +111,7 @@ COPY spacy_wheels/ /tmp/spacy_wheels/
 # Use uv run to execute commands from the virtual environment.
 # Copy pre-downloaded wheels into the cache so they are reused.
 RUN --mount=type=cache,target=/root/.cache/pip \
+    --mount=type=cache,target=/app/data/tiktoken \
     mkdir -p /app/data/tiktoken /app/spacy_models \
     && if ls /tmp/spacy_wheels/*.whl >/dev/null 2>&1; then \
          cp /tmp/spacy_wheels/*.whl /app/spacy_models/; \
