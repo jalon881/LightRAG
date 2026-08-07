@@ -76,7 +76,8 @@ ignore_this.txt
 /ag2_demo_workdir/
 
 # Frontend build output (built during PyPI release)
-/lightrag/api/webui/
+/lightrag/api/webui/*
+!/lightrag/api/webui/.gitkeep
 
 # temporary test files in project root
 /test_*

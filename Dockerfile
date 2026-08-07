@@ -1,8 +1,10 @@
 # syntax=docker/dockerfile:1
 
 # Frontend build stage
-# Use node:22-slim (official Docker image, cached by Chinese mirrors) and
-# install bun via npm so the initial image pull is fast everywhere.
+# Build frontend assets using node:22-slim (official Docker image, cached by
+# Chinese mirrors) + bun via npm. If pre-built artifacts exist in the context
+# (lightrag/api/webui/index.html), the build is skipped — essential for
+# low-RAM servers that OOM during Vite transforms.
 FROM --platform=$BUILDPLATFORM node:22-slim AS frontend-builder
 
 ARG USE_MIRROR=0
@@ -11,22 +13,23 @@ ARG VITE_DISABLE_GUEST_MODE=true
 
 WORKDIR /app
 
-# Install bun globally via npm (respects npm mirror when configured)
-RUN npm install -g bun --registry=$BUN_MIRROR \
-    && bun --version
-
-ENV BUN_CONFIG_REGISTRY=$BUN_MIRROR
-
-# Copy frontend source code
+# Source + pre-built artifacts (dir always exists thanks to .gitkeep)
 COPY lightrag_webui/ ./lightrag_webui/
+COPY lightrag/api/webui/ ./lightrag/api/webui/
 
-# Build frontend assets for inclusion in the API package
-# Limit Node memory to avoid OOM on low-memory servers (1G-2G RAM)
-ENV NODE_OPTIONS="--max-old-space-size=256"
-RUN --mount=type=cache,target=/root/.bun/install/cache \
-    cd lightrag_webui \
-    && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun install --frozen-lockfile \
-    && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun run build
+# Build only when no pre-built index.html is present
+RUN if [ -f ./lightrag/api/webui/index.html ]; then \
+        echo "Using pre-built frontend artifacts, skipping build"; \
+    else \
+        echo "Building frontend..."; \
+        npm install -g bun --registry=$BUN_MIRROR \
+        && bun --version \
+        && export BUN_CONFIG_REGISTRY=$BUN_MIRROR \
+        && export NODE_OPTIONS="--max-old-space-size=256" \
+        && cd lightrag_webui \
+        && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun install --frozen-lockfile \
+        && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun run build; \
+    fi
 
 # Python build stage - use python slim as base, install uv via pip.
 # Avoids ghcr.io which has no Chinese mirror.
