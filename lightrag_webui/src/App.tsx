@@ -3,7 +3,7 @@ import ThemeProvider from '@/components/ThemeProvider'
 import TabVisibilityProvider from '@/contexts/TabVisibilityProvider'
 import ApiKeyAlert from '@/components/ApiKeyAlert'
 import StatusIndicator from '@/components/status/StatusIndicator'
-import { SiteInfo, webuiPrefix } from '@/lib/constants'
+import { SiteInfo, webuiPrefix, disableGuestMode } from '@/lib/constants'
 import { useBackendState, useAuthStore } from '@/stores/state'
 import { useSettingsStore } from '@/stores/settings'
 import { getAuthStatus } from '@/api/lightrag'
@@ -119,10 +119,9 @@ function App() {
         const token = localStorage.getItem('LIGHTRAG-API-TOKEN');
         const status = await getAuthStatus();
 
-        // If auth is not configured and a new token is returned, use the new token.
-        // Only do this when there is no existing token — never overwrite a real
-        // user token (e.g. admin from .user_data.json) with a guest token.
-        if (!status.auth_configured && status.access_token && !token) {
+        // Guest auto-login: only when auth is NOT configured server-side AND
+        // the frontend has NOT explicitly disabled guest mode.
+        if (!status.auth_configured && status.access_token && !token && !disableGuestMode) {
           useAuthStore.getState().login(
             status.access_token, // Use the new token
             true, // Guest mode

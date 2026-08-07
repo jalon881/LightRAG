@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { createSelectors } from '@/lib/utils'
 import { checkHealth, LightragStatus } from '@/api/lightrag'
 import { useSettingsStore } from './settings'
-import { healthCheckInterval } from '@/lib/constants'
+import { healthCheckInterval, disableGuestMode } from '@/lib/constants'
 
 interface BackendState {
   health: boolean
@@ -216,7 +216,13 @@ const initAuthState = (): { isAuthenticated: boolean; isGuestMode: boolean; core
   const permissionsRaw = localStorage.getItem('LIGHTRAG-USER-PERMISSIONS');
   const permissions = permissionsRaw ? (() => { try { return JSON.parse(permissionsRaw); } catch { return null; } })() : null;
 
-  if (!token) {
+  // When guest mode is disabled at build time, reject guest tokens so the
+  // user is forced to the login page instead of auto-authenticating.
+  const isGuest = token ? isGuestToken(token) : false;
+  if (!token || (disableGuestMode && isGuest)) {
+    if (disableGuestMode && isGuest) {
+      localStorage.removeItem('LIGHTRAG-API-TOKEN');
+    }
     return {
       isAuthenticated: false,
       isGuestMode: false,
@@ -233,7 +239,7 @@ const initAuthState = (): { isAuthenticated: boolean; isGuestMode: boolean; core
 
   return {
     isAuthenticated: true,
-    isGuestMode: isGuestToken(token),
+    isGuestMode: isGuest,
     coreVersion: coreVersion,
     apiVersion: apiVersion,
     username: username,

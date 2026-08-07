@@ -5,6 +5,8 @@
 # cross-architecture emulation issues during multi-platform builds.
 FROM --platform=$BUILDPLATFORM oven/bun:1 AS frontend-builder
 
+ARG VITE_DISABLE_GUEST_MODE=true
+
 WORKDIR /app
 
 # Copy frontend source code
@@ -13,8 +15,8 @@ COPY lightrag_webui/ ./lightrag_webui/
 # Build frontend assets for inclusion in the API package
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     cd lightrag_webui \
-    && bun install --frozen-lockfile \
-    && bun run build
+    && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun install --frozen-lockfile \
+    && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun run build
 
 # Python build stage - using uv for package installation
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder

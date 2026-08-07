@@ -9,6 +9,7 @@ __pycache__
 env/
 *.env*
 .env_example
+!lightrag_webui/.env
 
 # Distribution / build files
 site

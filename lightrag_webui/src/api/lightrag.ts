@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios'
-import { backendBaseUrl, popularLabelsDefaultLimit, searchLabelsDefaultLimit } from '@/lib/constants'
+import { backendBaseUrl, popularLabelsDefaultLimit, searchLabelsDefaultLimit, disableGuestMode } from '@/lib/constants'
 import type { SupportedFileTypes } from '@/lib/fileTypes'
 import { errorMessage } from '@/lib/utils'
 import { useSettingsStore } from '@/stores/settings'
@@ -408,6 +408,11 @@ let refreshTokenPromise: Promise<string> | null = null;
 
 // Silent refresh for guest token
 const silentRefreshGuestToken = async (): Promise<string> => {
+  // Guest mode is disabled at build time — never silently refresh a guest token.
+  if (disableGuestMode) {
+    throw new Error('Guest mode is disabled');
+  }
+
   // If already refreshing, return the same Promise
   if (isRefreshingGuestToken && refreshTokenPromise) {
     return refreshTokenPromise;

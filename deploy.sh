@@ -348,7 +348,7 @@ do_up() {
         export UV_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
         export PIP_INDEX_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
         export UV_PYPI_URL="https://pypi.tuna.tsinghua.edu.cn/simple"
-        build_args="--build-arg USE_MIRROR=1 --build-arg BUN_MIRROR=https://registry.npmmirror.com --build-arg PYPI_MIRROR=https://pypi.tuna.tsinghua.edu.cn/simple"
+        build_args="--build-arg USE_MIRROR=1 --build-arg BUN_MIRROR=https://registry.npmmirror.com --build-arg PYPI_MIRROR=https://pypi.tuna.tsinghua.edu.cn/simple --build-arg SPACY_DOWNLOAD_MIRROR=https://ghproxy.com/"
     fi
 
     if [ "$BUILD_MODE" = true ]; then

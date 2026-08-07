@@ -7,6 +7,7 @@ FROM --platform=$BUILDPLATFORM oven/bun:1 AS frontend-builder
 
 ARG USE_MIRROR=0
 ARG BUN_MIRROR=https://registry.npmjs.org
+ARG VITE_DISABLE_GUEST_MODE=true
 ENV BUN_CONFIG_REGISTRY=$BUN_MIRROR
 
 WORKDIR /app
@@ -19,8 +20,8 @@ COPY lightrag_webui/ ./lightrag_webui/
 ENV NODE_OPTIONS="--max-old-space-size=512"
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     cd lightrag_webui \
-    && bun install --frozen-lockfile \
-    && bun run build
+    && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun install --frozen-lockfile \
+    && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun run build
 
 # Python build stage - use python slim as base, install uv via pip.
 # Avoids ghcr.io which has no Chinese mirror.

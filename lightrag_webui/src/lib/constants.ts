@@ -92,8 +92,13 @@ export const supportedFileTypes = {
 export const SiteInfo = {
   name: 'RAG知识库',
   home: '/',
-  github: 'https://github.com/HKUDS/LightRAG'
+  // Set VITE_GITHUB_URL at build time to show a GitHub icon in the sidebar.
+  github: import.meta.env.VITE_GITHUB_URL ?? ''
 }
+
+/** When true, guest auto-login is disabled — users must authenticate. */
+export const disableGuestMode =
+  import.meta.env.VITE_DISABLE_GUEST_MODE === 'true'
 
 // --- Graph layout performance thresholds ------------------------------------
 // Shared by the initial FA2 layout (GraphControl) and the manual worker

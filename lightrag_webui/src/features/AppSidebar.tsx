@@ -214,6 +214,7 @@ export default function AppSidebar() {
             )}
           >
             <div className={cn('flex items-center gap-1', collapsed && 'flex-col')}>
+            {SiteInfo.github && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -225,6 +226,7 @@ export default function AppSidebar() {
                   <GithubIcon className="size-4" />
                 </a>
               </Button>
+            )}
 
               <Button
                 variant="ghost"
