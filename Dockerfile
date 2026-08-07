@@ -27,7 +27,8 @@ RUN if [ -f ./lightrag/api/webui/index.html ]; then \
         && export BUN_CONFIG_REGISTRY=$BUN_MIRROR \
         && export NODE_OPTIONS="--max-old-space-size=256" \
         && cd lightrag_webui \
-        && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun install --frozen-lockfile \
+        && (VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun install --frozen-lockfile \
+            || VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun install) \
         && VITE_DISABLE_GUEST_MODE=$VITE_DISABLE_GUEST_MODE bun run build; \
     fi
 

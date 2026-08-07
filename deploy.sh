@@ -341,15 +341,27 @@ build_frontend_if_needed() {
 
     log "  前端未预构建，尝试在主机上构建..."
 
+    # Ensure a JS runtime is available
+    if ! command -v bun >/dev/null 2>&1 && ! command -v npm >/dev/null 2>&1; then
+        log "  主机上未安装 bun/npm，尝试安装 bun..."
+        if command -v npm >/dev/null 2>&1; then
+            npm install -g bun --registry=https://registry.npmmirror.com
+        elif command -v curl >/dev/null 2>&1; then
+            curl -fsSL https://bun.sh/install | bash
+            export PATH="$HOME/.bun/bin:$PATH"
+        fi
+    fi
+
     if command -v bun >/dev/null 2>&1; then
         log "  使用 bun 构建前端..."
         cd "$webui_dir"
-        bun install --frozen-lockfile && bun run build
+        bun install && bun run build
         cd "$PROJECT_DIR"
         if [ -f "$output_dir/index.html" ]; then
             log "  ✓ 前端构建完成 (bun)"
             return 0
         fi
+        warn "  bun 构建失败，尝试 Docker 内构建"
     fi
 
     if command -v npm >/dev/null 2>&1; then
@@ -363,7 +375,7 @@ build_frontend_if_needed() {
         fi
     fi
 
-    warn "  主机上未安装 bun/npm，前端将在 Docker 内构建（可能需要较多内存）"
+    warn "  主机上构建前端失败，将在 Docker 内构建（可能需要较多内存）"
     return 0
 }
 
