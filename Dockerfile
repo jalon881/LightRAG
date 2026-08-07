@@ -97,7 +97,7 @@ RUN --mount=type=cache,target=/root/.local/share/uv \
 # Cache the spaCy downloads so repeated builds are instant.
 RUN --mount=type=cache,target=/root/.cache/pip \
     mkdir -p /app/data/tiktoken \
-    && SPACY_DOWNLOAD_MIRROR=$SPACY_DOWNLOAD_MIRROR PIP_INDEX_URL=$PYPI_MIRROR uv run lightrag-download-cache --cache-dir /app/data/tiktoken --spacy --spacy-dir /app/spacy_models || status=$?; \
+    && PIP_INDEX_URL=$PYPI_MIRROR uv run lightrag-download-cache --cache-dir /app/data/tiktoken --spacy --spacy-dir /app/spacy_models || status=$?; \
     if [ -n "${status:-}" ] && [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then exit "$status"; fi
 
 # Final stage
