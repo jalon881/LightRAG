@@ -18,13 +18,16 @@ TIKTOKEN_ENCODING_NAMES = {"cl100k_base", "p50k_base", "r50k_base", "o200k_base"
 # Pinned to an exact version: smart_heading promises deterministic re-parse
 # results across environments, and a model drift would silently change NER /
 # sentence-split decisions. Keep in sync with requirements-offline-smart-heading.txt.
+# Models are specified as PyPI package specs (not GitHub URLs) so that pip
+# respects PIP_INDEX_URL / UV_INDEX_URL mirror configuration — essential for
+# fast downloads in regions where GitHub is slow.
 # spacy-pkuseg is zh_core_web_sm's tokenizer backend (a PyPI dependency the
 # model wheel does not bundle); it is pinned and shipped with the wheels for
 # the same determinism promise — without it the offline install of the zh
 # model from this wheel directory cannot resolve its dependency.
 SPACY_MODEL_WHEELS = {
-    "zh_core_web_sm": "https://github.com/explosion/spacy-models/releases/download/zh_core_web_sm-3.8.0/zh_core_web_sm-3.8.0-py3-none-any.whl",
-    "en_core_web_sm": "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+    "zh_core_web_sm": "zh-core-web-sm==3.8.0",
+    "en_core_web_sm": "en-core-web-sm==3.8.0",
     "spacy-pkuseg": "spacy-pkuseg==1.0.1",
 }
 

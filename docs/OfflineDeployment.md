@@ -197,9 +197,7 @@ lightrag-download-cache --spacy --spacy-install
 ### Install in Offline Environment
 
 ```bash
-# Install by name from the transferred wheel directory. Do NOT use
-# `-r requirements-offline-smart-heading.txt` here: its model pins are direct
-# GitHub URLs, which pip fetches from the network even under --no-index.
+# Install by name from the transferred wheel directory.
 pip install --no-index --find-links=./packages spacy zh_core_web_sm en_core_web_sm
 # or, with only the model wheels from lightrag-download-cache --spacy:
 pip install --no-index --find-links=./spacy_models zh_core_web_sm en_core_web_sm
