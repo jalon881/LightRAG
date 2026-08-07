@@ -18,21 +18,22 @@ TIKTOKEN_ENCODING_NAMES = {"cl100k_base", "p50k_base", "r50k_base", "o200k_base"
 # Pinned to an exact version: smart_heading promises deterministic re-parse
 # results across environments, and a model drift would silently change NER /
 # sentence-split decisions. Keep in sync with requirements-offline-smart-heading.txt.
-# Models are specified as PyPI package specs (not GitHub URLs) so that pip
-# respects PIP_INDEX_URL / UV_INDEX_URL mirror configuration — essential for
-# fast downloads in regions where GitHub is slow.
+# These model wheels are published on GitHub Releases (NOT on PyPI). To accelerate
+# downloads in bandwidth-constrained regions, set SPACY_DOWNLOAD_MIRROR to a
+# URL prefix (e.g. "https://ghproxy.com/") — it is prepended to every GitHub URL.
 # spacy-pkuseg is zh_core_web_sm's tokenizer backend (a PyPI dependency the
 # model wheel does not bundle); it is pinned and shipped with the wheels for
 # the same determinism promise — without it the offline install of the zh
 # model from this wheel directory cannot resolve its dependency.
+_GITHUB_SPACY_BASE = "https://github.com/explosion/spacy-models/releases/download"
 SPACY_MODEL_WHEELS = {
-    "zh_core_web_sm": "zh-core-web-sm==3.8.0",
-    "en_core_web_sm": "en-core-web-sm==3.8.0",
+    "zh_core_web_sm": f"{_GITHUB_SPACY_BASE}/zh_core_web_sm-3.8.0/zh_core_web_sm-3.8.0-py3-none-any.whl",
+    "en_core_web_sm": f"{_GITHUB_SPACY_BASE}/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     "spacy-pkuseg": "spacy-pkuseg==1.0.1",
 }
 
 
-def download_spacy_models(spacy_dir: str = None, install: bool = False):
+def download_spacy_models(spacy_dir: str = None, install: bool = False, mirror: str = None):
     """Download (and optionally install) the pinned spaCy model wheels.
 
     Args:
@@ -40,11 +41,17 @@ def download_spacy_models(spacy_dir: str = None, install: bool = False):
             ``./spacy_models``. Ignored when ``install`` is True.
         install: If True, ``pip install`` the wheels into the current
             environment instead of downloading them to a directory.
+        mirror: Optional URL prefix prepended to GitHub download URLs.
+            Also read from the ``SPACY_DOWNLOAD_MIRROR`` env var.
+            Example: ``"https://ghproxy.com/"``
 
     Returns:
         Tuple of (success_count, failed_models)
     """
     import subprocess
+
+    if mirror is None:
+        mirror = os.environ.get("SPACY_DOWNLOAD_MIRROR", "")
 
     success_count = 0
     failed_models = []
@@ -56,11 +63,18 @@ def download_spacy_models(spacy_dir: str = None, install: bool = False):
         Path(spacy_dir).mkdir(parents=True, exist_ok=True)
         print(f"\nDownloading {len(SPACY_MODEL_WHEELS)} spaCy model wheels...")
         print(f"Using spaCy model directory: {spacy_dir}")
+    if mirror:
+        print(f"Using download mirror: {mirror}")
     print("=" * 70)
 
     for i, (name, url) in enumerate(sorted(SPACY_MODEL_WHEELS.items()), 1):
+        # Apply mirror prefix to GitHub URLs so pip can download through
+        # a regional proxy (e.g. ghproxy.com) in bandwidth-constrained regions.
+        resolved_url = url
+        if mirror and url.startswith("https://github.com"):
+            resolved_url = mirror + url
         if install:
-            cmd = [sys.executable, "-m", "pip", "install", url]
+            cmd = [sys.executable, "-m", "pip", "install", resolved_url]
             action = "Installing"
         else:
             cmd = [
@@ -71,7 +85,7 @@ def download_spacy_models(spacy_dir: str = None, install: bool = False):
                 "--no-deps",
                 "--dest",
                 spacy_dir,
-                url,
+                resolved_url,
             ]
             action = "Downloading"
         try:
@@ -236,6 +250,9 @@ Examples:
   # smart_heading engine parameter (to ./spacy_models by default)
   lightrag-download-cache --spacy
 
+  # Use a regional proxy to accelerate spaCy GitHub downloads
+  lightrag-download-cache --spacy --spacy-mirror https://ghproxy.com/
+
   # Install the spaCy models straight into the current environment
   lightrag-download-cache --spacy --spacy-install
 
@@ -272,6 +289,13 @@ For more information, visit: https://github.com/HKUDS/LightRAG
         "instead of downloading wheels (implies --spacy)",
     )
     parser.add_argument(
+        "--spacy-mirror",
+        help="URL prefix for accelerating spaCy model downloads from GitHub, "
+        "e.g. https://ghproxy.com/ (also settable via SPACY_DOWNLOAD_MIRROR "
+        "env var). Prepended to GitHub release URLs.",
+        default=None,
+    )
+    parser.add_argument(
         "--version", action="version", version="%(prog)s (LightRAG cache downloader)"
     )
 
@@ -288,7 +312,7 @@ For more information, visit: https://github.com/HKUDS/LightRAG
 
         if args.spacy or args.spacy_install:
             spacy_success, spacy_failed = download_spacy_models(
-                args.spacy_dir, install=args.spacy_install
+                args.spacy_dir, install=args.spacy_install, mirror=args.spacy_mirror
             )
             success_count += spacy_success
             failed_models.extend(spacy_failed)
