@@ -76,9 +76,10 @@ def download_spacy_models(spacy_dir: str = None, install: bool = False, mirror: 
         if mirror and url.startswith("https://github.com"):
             resolved_url = mirror + url
         if install:
-            cmd = [sys.executable, "-m", "pip", "install", resolved_url]
             action = "Installing"
+            cmd = [sys.executable, "-m", "pip", "install", resolved_url]
         else:
+            action = "Downloading"
             # Check if wheel already exists in destination
             wheel_filename = resolved_url.rsplit("/", 1)[-1]
             if (Path(spacy_dir) / wheel_filename).exists():
@@ -102,7 +103,6 @@ def download_spacy_models(spacy_dir: str = None, install: bool = False, mirror: 
                 spacy_dir,
                 resolved_url,
             ]
-            action = "Downloading"
         try:
             started = time.time()
             ts = (datetime.now(timezone.utc) + timedelta(hours=8)).strftime("%H:%M:%S")
