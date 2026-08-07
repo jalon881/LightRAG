@@ -1,16 +1,21 @@
 # syntax=docker/dockerfile:1
 
 # Frontend build stage
-# Build frontend assets on the native build platform to avoid
-# cross-architecture emulation issues during multi-platform builds.
-FROM --platform=$BUILDPLATFORM oven/bun:1 AS frontend-builder
+# Use node:22-slim (official Docker image, cached by Chinese mirrors) and
+# install bun via npm so the initial image pull is fast everywhere.
+FROM --platform=$BUILDPLATFORM node:22-slim AS frontend-builder
 
 ARG USE_MIRROR=0
 ARG BUN_MIRROR=https://registry.npmjs.org
 ARG VITE_DISABLE_GUEST_MODE=true
-ENV BUN_CONFIG_REGISTRY=$BUN_MIRROR
 
 WORKDIR /app
+
+# Install bun globally via npm (respects npm mirror when configured)
+RUN npm install -g bun --registry=$BUN_MIRROR \
+    && bun --version
+
+ENV BUN_CONFIG_REGISTRY=$BUN_MIRROR
 
 # Copy frontend source code
 COPY lightrag_webui/ ./lightrag_webui/
