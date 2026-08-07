@@ -83,6 +83,8 @@ def download_spacy_models(spacy_dir: str = None, install: bool = False, mirror: 
                 "pip",
                 "download",
                 "--no-deps",
+                "--timeout",
+                "600",
                 "--dest",
                 spacy_dir,
                 resolved_url,
