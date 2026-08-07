@@ -723,6 +723,19 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
     setSelectedDocIds(currentPageDocIds)
   }, [currentPageDocIds])
 
+  // Toggle all on current page (header checkbox)
+  const toggleSelectAll = useCallback(() => {
+    setSelectedDocIds(prev => {
+      if (isCurrentPageFullySelected) {
+        return prev.filter(id => !currentPageDocIds.includes(id))
+      }
+      // Add all current page IDs (deduped)
+      const existing = new Set(prev)
+      for (const id of currentPageDocIds) existing.add(id)
+      return [...existing]
+    })
+  }, [currentPageDocIds, isCurrentPageFullySelected])
+
 
   // Get selection button properties
   const getSelectionButtonProps = useCallback(() => {
@@ -1544,12 +1557,17 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
               </Select>
             )}
             {isSelectionMode && (
-              <DeleteDocumentsDialog
-                selectedDocIds={selectedDocIds}
-                docKbIds={activeKbId ? undefined : docKbIds}
-                onDocumentsDeleted={handleDocumentsDeleted}
-                kbId={activeKbId}
-              />
+              <>
+                <span className="text-sm text-muted-foreground">
+                  {t('documentPanel.selectedCount', { count: selectedDocIds.length })}
+                </span>
+                <DeleteDocumentsDialog
+                  selectedDocIds={selectedDocIds}
+                  docKbIds={activeKbId ? undefined : docKbIds}
+                  onDocumentsDeleted={handleDocumentsDeleted}
+                  kbId={activeKbId}
+                />
+              </>
             )}
             {isSelectionMode && hasCurrentPageSelection ? (
               (() => {
@@ -1691,8 +1709,14 @@ export default function DocumentManager({ workspace }: { workspace?: string } = 
                     <Table className="w-full">
                       <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
                         <TableRow className="border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/75 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)]">
-                          <TableHead className="w-16 text-center">
-                            {t('documentPanel.documentManager.columns.select')}
+                          <TableHead className="w-10 text-center">
+                            <Checkbox
+                              aria-label={t('documentPanel.selectAll', 'Select all')}
+                              checked={
+                                isCurrentPageFullySelected ? true : hasCurrentPageSelection ? 'indeterminate' : false
+                              }
+                              onCheckedChange={toggleSelectAll}
+                            />
                           </TableHead>
                           <TableHead
                             onClick={() => handleSort('id')}

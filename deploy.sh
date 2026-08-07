@@ -430,7 +430,11 @@ cleanup_images() {
 
 show_access_info() {
     local ip
-    ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    # Try public IP first, fall back to private IP, then localhost
+    ip=$(curl -sf --connect-timeout 3 https://ifconfig.me 2>/dev/null \
+        || curl -sf --connect-timeout 3 https://api.ipify.org 2>/dev/null \
+        || curl -sf --connect-timeout 3 https://icanhazip.com 2>/dev/null)
+    [ -z "$ip" ] && ip=$(hostname -I 2>/dev/null | awk '{print $1}')
     [ -z "$ip" ] && ip="localhost"
 
     echo ""

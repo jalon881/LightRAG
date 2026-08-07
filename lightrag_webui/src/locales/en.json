@@ -139,6 +139,8 @@
       "selectCurrentPage": "Select Current Page ({{count}})",
       "deselectAll": "Deselect All ({{count}})"
     },
+    "selectAll": "Select all",
+    "selectedCount": "{{count}} selected",
     "uploadDocuments": {
       "button": "Upload",
       "tooltip": "Upload documents",
@@ -655,6 +657,7 @@
     "unknownUser": "Unknown user",
     "standardUser": "Standard User",
     "superAdmin": "Super Admin",
+    "trialUser": "Trial User",
     "accountHint": "Signed in to the RAG knowledge base server",
     "authMode": "Authentication Mode",
     "authEnabled": "Enabled",

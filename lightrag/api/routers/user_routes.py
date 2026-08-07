@@ -50,7 +50,7 @@ AVAILABLE_MENU_ITEMS = [
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=1, max_length=64, description="Username")
     password: str = Field(..., min_length=1, max_length=128, description="Password")
-    role: str = Field("user", pattern="^(admin|user)$", description="User role")
+    role: str = Field("user", pattern="^(admin|user|trial)$", description="User role")
     permissions: List[str] = Field(
         default_factory=lambda: list(AVAILABLE_MENU_ITEMS),
         description="Allowed menu items",
@@ -59,7 +59,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, max_length=128, description="New password")
-    role: Optional[str] = Field(None, pattern="^(admin|user)$", description="User role")
+    role: Optional[str] = Field(None, pattern="^(admin|user|trial)$", description="User role")
 
 
 class UserLockToggle(BaseModel):
@@ -80,6 +80,8 @@ class UserInfo(BaseModel):
     created_at: str
     token_expires_at: Optional[int] = None
     login_token: Optional[str] = None
+    documents_quota: Optional[int] = None
+    documents_used: Optional[int] = None
 
 
 class UserListResponse(BaseModel):
@@ -160,6 +162,50 @@ def _find_user(users: List[Dict[str, Any]], username: str) -> Optional[Dict[str,
 
 
 # ---------------------------------------------------------------------------
+# Document quota helpers (used by document routes)
+# ---------------------------------------------------------------------------
+
+TRIAL_DOCUMENTS_QUOTA = 2
+
+
+async def check_and_consume_document_quota(username: str) -> None:
+    """Atomically check and consume one document upload quota for a trial user.
+
+    Raises HTTPException(429) if the quota is exhausted.
+    Admin and regular users are unlimited (no-op).
+
+    The check-and-increment is performed under _USER_DATA_LOCK so concurrent
+    uploads from the same trial user cannot race past the quota.
+    """
+    async with _USER_DATA_LOCK:
+        users = await _read_users()
+        user = _find_user(users, username)
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+
+        role = user.get("role", "user")
+        if role != "trial":
+            return  # No quota for admin / regular users
+
+        quota = user.get("documents_quota", TRIAL_DOCUMENTS_QUOTA)
+        used = user.get("documents_used", 0)
+
+        if used >= quota:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"已将上传配额用完 ({used}/{quota})。"
+                    f"试用用户最多只能上传 {quota} 个文档，"
+                    "请联系管理员升级为正式用户。"
+                ),
+            )
+
+        # Atomically increment under the lock
+        user["documents_used"] = used + 1
+        await _write_users(users)
+
+
+# ---------------------------------------------------------------------------
 # Router factory
 # ---------------------------------------------------------------------------
 
@@ -192,6 +238,8 @@ def create_user_routes(
                 created_at=u.get("created_at", ""),
                 token_expires_at=u.get("token_expires_at"),
                 login_token=u.get("login_token"),
+                documents_quota=u.get("documents_quota"),
+                documents_used=u.get("documents_used"),
             )
             for u in users
         ]
@@ -242,6 +290,10 @@ def create_user_routes(
                 __import__("datetime").timezone.utc
             ).isoformat(),
         }
+        # Trial users get a document upload quota
+        if data.role == "trial":
+            new_user["documents_quota"] = 2
+            new_user["documents_used"] = 0
         users.append(new_user)
         await _write_users(users)
         logger.info(f"User '{username}' created with role '{data.role}'")
@@ -253,6 +305,8 @@ def create_user_routes(
             permissions=new_user["permissions"],
             created_at=new_user["created_at"],
             token_expires_at=new_user.get("token_expires_at"),
+            documents_quota=new_user.get("documents_quota"),
+            documents_used=new_user.get("documents_used"),
         )
 
     @router.put("/{username}", response_model=UserInfo)
@@ -267,6 +321,15 @@ def create_user_routes(
             user["password"] = _hash_password(data.password)
         if data.role is not None:
             user["role"] = data.role
+            # Initialize/reset quota when changing role to trial
+            if data.role == "trial":
+                if "documents_quota" not in user:
+                    user["documents_quota"] = 2
+                    user["documents_used"] = 0
+            else:
+                # Remove quota fields for non-trial roles
+                user.pop("documents_quota", None)
+                user.pop("documents_used", None)
 
         await _write_users(users)
         logger.info(f"User '{username}' updated")
@@ -278,6 +341,8 @@ def create_user_routes(
             permissions=user.get("permissions", list(AVAILABLE_MENU_ITEMS)),
             created_at=user.get("created_at", ""),
             token_expires_at=user.get("token_expires_at"),
+            documents_quota=user.get("documents_quota"),
+            documents_used=user.get("documents_used"),
         )
 
     @router.delete("/{username}")
@@ -321,6 +386,8 @@ def create_user_routes(
             permissions=user.get("permissions", list(AVAILABLE_MENU_ITEMS)),
             created_at=user.get("created_at", ""),
             token_expires_at=user.get("token_expires_at"),
+            documents_quota=user.get("documents_quota"),
+            documents_used=user.get("documents_used"),
         )
 
     @router.put("/{username}/permissions", response_model=UserInfo)
@@ -352,6 +419,8 @@ def create_user_routes(
             permissions=user["permissions"],
             created_at=user.get("created_at", ""),
             token_expires_at=user.get("token_expires_at"),
+            documents_quota=user.get("documents_quota"),
+            documents_used=user.get("documents_used"),
         )
 
     @router.post("/{username}/token")

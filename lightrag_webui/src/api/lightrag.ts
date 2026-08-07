@@ -1133,6 +1133,8 @@ export interface UserInfo {
   created_at: string
   token_expires_at?: number | null
   login_token?: string | null
+  documents_quota?: number | null
+  documents_used?: number | null
 }
 
 export interface UserListResponse {

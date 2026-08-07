@@ -41,7 +41,7 @@ from starlette.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from lightrag import LightRAG
-from lightrag.api.utils_api import internal_server_error
+from lightrag.api.utils_api import internal_server_error, get_current_username
 from lightrag.base import (
     CURSOR_START,
     CursorAfter,
@@ -5129,6 +5129,12 @@ def create_document_routes(
             if not admission_adopted:
                 await _reserve_enqueue_slot(rag, enqueue_token)
 
+            # Check trial user document quota
+            username = await get_current_username(http_request)
+            if username:
+                from lightrag.api.routers.user_routes import check_and_consume_document_quota
+                await check_and_consume_document_quota(username)
+
             # Sanitize filename to prevent Path Traversal attacks
             safe_filename = sanitize_filename(file.filename, doc_manager.input_dir)
 
@@ -5348,6 +5354,12 @@ def create_document_routes(
             if not admission_adopted:
                 await _reserve_enqueue_slot(rag, enqueue_token)
 
+            # Check trial user document quota
+            username = await get_current_username(http_request)
+            if username:
+                from lightrag.api.routers.user_routes import check_and_consume_document_quota
+                await check_and_consume_document_quota(username)
+
             # Check if file_source already exists in doc_status storage
             if not is_valid_file_source(request.file_source):
                 raise HTTPException(
@@ -5483,6 +5495,12 @@ def create_document_routes(
             # reserve a pending-enqueue slot — see /upload for the rationale.
             if not admission_adopted:
                 await _reserve_enqueue_slot(rag, enqueue_token)
+
+            # Check trial user document quota (one per text in batch)
+            username = await get_current_username(http_request)
+            if username:
+                from lightrag.api.routers.user_routes import check_and_consume_document_quota
+                await check_and_consume_document_quota(username)
 
             # Check if any file_sources already exist in doc_status storage
             if not request.file_sources or len(request.file_sources) != len(

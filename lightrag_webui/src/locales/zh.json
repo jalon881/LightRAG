@@ -139,6 +139,8 @@
       "selectCurrentPage": "全选当前页 ({{count}})",
       "deselectAll": "取消全选 ({{count}})"
     },
+    "selectAll": "全选",
+    "selectedCount": "已选 {{count}} 个文档",
     "uploadDocuments": {
       "button": "上传",
       "tooltip": "上传文档",
@@ -655,6 +657,7 @@
     "unknownUser": "未知用户",
     "standardUser": "标准用户",
     "superAdmin": "超级管理员",
+    "trialUser": "试用用户",
     "accountHint": "已登录 RAG知识库 服务",
     "authMode": "认证模式",
     "authEnabled": "已启用",

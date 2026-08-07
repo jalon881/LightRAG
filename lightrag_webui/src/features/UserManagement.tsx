@@ -430,8 +430,8 @@ export default function UserManagement() {
                           </div>
                         </td>
                         <td className="py-3">
-                          <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="gap-1 text-xs">
-                            {user.role === 'admin' ? t('userManagement.superAdmin', 'Super Admin') : t('userManagement.standardUser', 'Standard User')}
+                          <Badge variant={user.role === 'admin' ? 'default' : user.role === 'trial' ? 'outline' : 'secondary'} className="gap-1 text-xs">
+                            {user.role === 'admin' ? t('userManagement.superAdmin', 'Super Admin') : user.role === 'trial' ? t('userManagement.trialUser', 'Trial User') : t('userManagement.standardUser', 'Standard User')}
                           </Badge>
                         </td>
                         <td className="py-3">
@@ -574,7 +574,7 @@ export default function UserManagement() {
               />
               <InfoRow
                 label={t('userManagement.role', 'Role')}
-                value={role === 'admin' ? t('userManagement.superAdmin', 'Super Admin') : role === 'user' ? t('userManagement.standardUser', 'Standard User') : (role || t('userManagement.roleUnknown', 'unknown'))}
+                value={role === 'admin' ? t('userManagement.superAdmin', 'Super Admin') : role === 'trial' ? t('userManagement.trialUser', 'Trial User') : role === 'user' ? t('userManagement.standardUser', 'Standard User') : (role || t('userManagement.roleUnknown', 'unknown'))}
                 mono
               />
               <InfoRow
@@ -708,6 +708,7 @@ export default function UserManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="user">{t('userManagement.standardUser', 'Standard User')}</SelectItem>
+                  <SelectItem value="trial">{t('userManagement.trialUser', 'Trial User')}</SelectItem>
                   <SelectItem value="admin">{t('userManagement.superAdmin', 'Super Admin')}</SelectItem>
                 </SelectContent>
               </Select>
@@ -773,6 +774,7 @@ export default function UserManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="user">{t('userManagement.standardUser', 'Standard User')}</SelectItem>
+                  <SelectItem value="trial">{t('userManagement.trialUser', 'Trial User')}</SelectItem>
                   <SelectItem value="admin">{t('userManagement.superAdmin', 'Super Admin')}</SelectItem>
                 </SelectContent>
               </Select>

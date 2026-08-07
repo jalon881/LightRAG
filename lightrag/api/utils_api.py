@@ -645,3 +645,24 @@ def display_splash_screen(args: argparse.Namespace) -> None:
 
     # Ensure splash output flush to system log
     sys.stdout.flush()
+
+
+async def get_current_username(request: Request) -> str | None:
+    """Extract the authenticated username from the request's JWT token.
+
+    Returns None if no valid token is present (e.g. whitelisted path).
+    """
+    import jwt as pyjwt
+
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+
+    token = auth_header[len("Bearer "):]
+    try:
+        payload = pyjwt.decode(
+            token, auth_handler.secret, algorithms=[auth_handler.algorithm]
+        )
+        return payload.get("sub")
+    except Exception:
+        return None
