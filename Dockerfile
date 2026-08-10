@@ -62,8 +62,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         if [ "$USE_MIRROR" = "1" ]; then \
             sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources; \
         fi; \
-        apt-get update \
-        && apt-get install -y --no-install-recommends \
+        if ! apt-get update; then \
+            echo "Mirror GPG failed, falling back to deb.debian.org"; \
+            sed -i 's|mirrors.tuna.tsinghua.edu.cn|deb.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
+            apt-get update; \
+        fi; \
+        apt-get install -y --no-install-recommends \
             curl \
             build-essential \
             pkg-config \
@@ -189,15 +193,24 @@ ENV PROMPT_DIR=/app/data/prompts
 # Fixed UID/GID 1000 gives predictable ownership for bind-mounts / PVCs.
 # chown -R /app MUST run after every data COPY above so the venv (pipmaster
 # installs packages at runtime), data dirs, and the tiktoken cache are writable.
-RUN if [ "$USE_MIRROR" = "1" ]; then \
-        sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources; \
-    fi \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends gosu \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd -g 1000 lightrag \
-    && useradd -u 1000 -g lightrag -m -d /home/lightrag -s /usr/sbin/nologin lightrag \
-    && chown -R lightrag:lightrag /app /home/lightrag
+# Skip if gosu + lightrag user already exist (cache mount hit on rebuild).
+RUN if command -v gosu >/dev/null 2>&1 && id lightrag >/dev/null 2>&1; then \
+        echo "gosu and lightrag user already exist, skipping"; \
+    else \
+        if [ "$USE_MIRROR" = "1" ]; then \
+            sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources; \
+        fi; \
+        if ! apt-get update; then \
+            echo "Mirror GPG failed, falling back to deb.debian.org"; \
+            sed -i 's|mirrors.tuna.tsinghua.edu.cn|deb.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
+            apt-get update; \
+        fi; \
+        apt-get install -y --no-install-recommends gosu; \
+        rm -rf /var/lib/apt/lists/*; \
+        groupadd -g 1000 lightrag; \
+        useradd -u 1000 -g lightrag -m -d /home/lightrag -s /usr/sbin/nologin lightrag; \
+        chown -R lightrag:lightrag /app /home/lightrag; \
+    fi
 
 # HOME and cache dirs for the non-root user so pipmaster's runtime pip installs
 # never fall back to an unwritable /root or a missing HOME.
