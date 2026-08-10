@@ -325,11 +325,22 @@ export default function UserManagement() {
       const data = await generateUserToken(username, tokenExpireHours)
       setGeneratedToken(data.access_token)
       setGenTokenExpiresAt(data.expires_at || null)
-      // If generating for the currently logged-in user, update the
-      // personal info section immediately.
+      // If generating for the currently logged-in user, immediately
+      // save and switch to the new token.  The backend already
+      // invalidated the old token (bump_token_version), so any
+      // subsequent request with the old token would get a 401.
       const currentUser = useAuthStore.getState().username
       if (currentUser && currentUser === username) {
-        useAuthStore.getState().setTokenRenewal(Date.now(), (data.expires_at || 0) * 1000)
+        useAuthStore.getState().login(
+          data.access_token,
+          false,
+          useAuthStore.getState().permissions,
+          useAuthStore.getState().coreVersion,
+          useAuthStore.getState().apiVersion,
+          useAuthStore.getState().webuiTitle,
+          useAuthStore.getState().webuiDescription,
+          data.expires_at || undefined,
+        )
       }
       setTokenDialogUser(username)
     } catch (error: any) {
