@@ -284,6 +284,19 @@ update_code_from_git() {
             log "  ✓ 已是最新，无需更新"
         fi
 
+        # If frontend source, Dockerfile, or deploy.sh changed, clear
+        # pre-built frontend artifacts so the Docker build rebuilds them
+        # instead of reusing stale bundles from a previous build.
+        if [ -n "$old_head" ] && [ "$old_head" != "$new_head" ]; then
+            if git -C "$PROJECT_DIR" diff --name-only "$old_head" "$new_head" 2>/dev/null | grep -qE '^(lightrag_webui/|Dockerfile|deploy\.sh|docker-compose)'; then
+                local webui_out="$PROJECT_DIR/lightrag/api/webui"
+                if [ -d "$webui_out" ] && [ -f "$webui_out/index.html" ]; then
+                    log "  检测到前端/Dockerfile 变更，清除旧的预构建产物以强制重建..."
+                    find "$webui_out" -mindepth 1 -not -name '.gitkeep' -exec rm -rf {} + 2>/dev/null || true
+                fi
+            fi
+        fi
+
         log "  ✓ 当前分支: $GIT_BRANCH ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
 
     else
@@ -503,10 +516,10 @@ do_up() {
     if [ "$BUILD_MODE" = true ]; then
         log "  模式: 本地构建 + 启动"
         $COMPOSE_CMD -f "$COMPOSE_FILE" build --progress=plain $build_args
-        $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
+        $COMPOSE_CMD -f "$COMPOSE_FILE" up -d --force-recreate
     else
         log "  模式: 使用已有镜像启动"
-        $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
+        $COMPOSE_CMD -f "$COMPOSE_FILE" up -d --force-recreate
     fi
 
     log ""
