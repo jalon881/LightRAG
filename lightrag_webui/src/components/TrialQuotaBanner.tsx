@@ -68,7 +68,7 @@ export default function TrialQuotaBanner() {
       <span>
         {exhausted
           ? t('documentPanel.quotaExhaustedBanner', 'Upload quota exhausted ({{used}}/{{quota}}). Contact admin to upgrade.', { used, quota })
-          : t('documentPanel.quotaRemainingBanner', 'Trial account: {{remaining}} of {{quota}} uploads remaining', { remaining, quota })}
+          : t('documentPanel.quotaRemainingBanner', 'Trial account: {{used}}/{{quota}} uploads used ({{remaining}} remaining)', { used, quota, remaining })}
       </span>
     </div>
   )

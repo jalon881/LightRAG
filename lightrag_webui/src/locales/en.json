@@ -175,7 +175,7 @@
       }
     },
     "quotaExhaustedBanner": "Upload quota exhausted ({{used}}/{{quota}}). Contact admin to upgrade.",
-    "quotaRemainingBanner": "Trial account: {{remaining}} of {{quota}} uploads remaining",
+    "quotaRemainingBanner": "Trial account: {{used}}/{{quota}} uploads used ({{remaining}} remaining)",
     "documentManager": {
       "title": "Document Management",
       "scanButton": "Scan/Retry",

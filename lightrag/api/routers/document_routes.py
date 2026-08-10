@@ -5129,21 +5129,12 @@ def create_document_routes(
             if not admission_adopted:
                 await _reserve_enqueue_slot(rag, enqueue_token)
 
-            # Check trial user document quota
-            username = await get_current_username(http_request)
-            if username:
-                from lightrag.api.routers.user_routes import check_and_consume_document_quota
-                await check_and_consume_document_quota(username)
-
             # Sanitize filename to prevent Path Traversal attacks
             safe_filename = sanitize_filename(file.filename, doc_manager.input_dir)
 
             try:
                 filename_supported = doc_manager.is_supported_file(safe_filename)
             except FilenameParserHintError as hint_error:
-                # Reject malformed hints synchronously with the detailed
-                # message (previously surfaced asynchronously as an error
-                # document after the upload was accepted).
                 raise HTTPException(status_code=400, detail=str(hint_error))
             if not filename_supported:
                 raise HTTPException(
@@ -5156,10 +5147,7 @@ def create_document_routes(
                 global_args.max_upload_size is not None
                 and global_args.max_upload_size > 0
             ):
-                # Safe access to file size (not available in older Starlette versions)
                 file_size = getattr(file, "size", None)
-
-                # Pre-flight size check (only if size is available)
                 if file_size is not None:
                     if file_size > global_args.max_upload_size:
                         raise HTTPException(
@@ -5167,18 +5155,13 @@ def create_document_routes(
                             detail=f"File too large. Maximum size: {global_args.max_upload_size / 1024 / 1024:.1f}MB, uploaded: {file_size / 1024 / 1024:.1f}MB",
                         )
                 else:
-                    # If size not available, we'll check during streaming
                     logger.debug(
                         f"File size not available in UploadFile for {safe_filename}, will check during streaming"
                     )
 
             file_path = doc_manager.input_dir / safe_filename
 
-            # Strict name pre-check.  Both the INPUT directory and doc_status
-            # must be free of any same-canonical-basename record before we
-            # accept the upload.  Replacing an existing document requires an
-            # explicit DELETE first; we no longer write a "duplicated" 200
-            # response that silently no-ops.
+            # Strict name pre-check
             existing_doc_data = await get_existing_doc_by_file_path_candidates(
                 rag.doc_status, file_path
             )
@@ -5191,6 +5174,13 @@ def create_document_routes(
                         f"(Status: {status}). Delete the existing record before re-uploading."
                     ),
                 )
+
+            # Check trial user document quota — only AFTER all validation passes,
+            # so failed uploads (bad type, oversize, duplicate) don't consume quota.
+            username = await get_current_username(http_request)
+            if username:
+                from lightrag.api.routers.user_routes import check_and_consume_document_quota
+                await check_and_consume_document_quota(username)
 
             # INPUT directory check, using canonical parser-hint names.
             # Fast path: exact filename match avoids iterdir on large input directories.
@@ -5354,12 +5344,6 @@ def create_document_routes(
             if not admission_adopted:
                 await _reserve_enqueue_slot(rag, enqueue_token)
 
-            # Check trial user document quota
-            username = await get_current_username(http_request)
-            if username:
-                from lightrag.api.routers.user_routes import check_and_consume_document_quota
-                await check_and_consume_document_quota(username)
-
             # Check if file_source already exists in doc_status storage
             if not is_valid_file_source(request.file_source):
                 raise HTTPException(
@@ -5396,6 +5380,12 @@ def create_document_routes(
                     status_code=422,
                     detail=f"Invalid chunking configuration: {exc}",
                 )
+
+            # Check trial user document quota AFTER all validations pass
+            username = await get_current_username(http_request)
+            if username:
+                from lightrag.api.routers.user_routes import check_and_consume_document_quota
+                await check_and_consume_document_quota(username)
 
             # Generate track_id for text insertion
             track_id = generate_track_id("insert")
@@ -5496,12 +5486,6 @@ def create_document_routes(
             if not admission_adopted:
                 await _reserve_enqueue_slot(rag, enqueue_token)
 
-            # Check trial user document quota (one per text in batch)
-            username = await get_current_username(http_request)
-            if username:
-                from lightrag.api.routers.user_routes import check_and_consume_document_quota
-                await check_and_consume_document_quota(username)
-
             # Check if any file_sources already exist in doc_status storage
             if not request.file_sources or len(request.file_sources) != len(
                 request.texts
@@ -5557,6 +5541,12 @@ def create_document_routes(
                     status_code=422,
                     detail=f"Invalid chunking configuration: {exc}",
                 )
+
+            # Check trial user document quota AFTER all validations pass
+            username = await get_current_username(http_request)
+            if username:
+                from lightrag.api.routers.user_routes import check_and_consume_document_quota
+                await check_and_consume_document_quota(username)
 
             # The reservation was taken for a single document before the body
             # was known; this request actually brings N. Re-weight the SAME

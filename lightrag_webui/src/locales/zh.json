@@ -175,7 +175,7 @@
       }
     },
     "quotaExhaustedBanner": "上传配额已用完 ({{used}}/{{quota}})，请联系管理员升级账户。",
-    "quotaRemainingBanner": "试用账户：剩余 {{remaining}}/{{quota}} 次上传",
+    "quotaRemainingBanner": "试用账户：已用 {{used}}/{{quota}} 次上传（剩余 {{remaining}} 次）",
     "documentManager": {
       "title": "文档管理",
       "scanButton": "扫描/重试",
