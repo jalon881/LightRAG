@@ -453,8 +453,15 @@ def create_user_routes(
                 status_code=403, detail=f"User '{username}' is locked, cannot generate token"
             )
 
-        # Bump token_version to invalidate all previous tokens for this user
-        new_version = auth_handler.bump_token_version(username)
+        # Bump token_version to invalidate all previous tokens for this user.
+        # We operate on the in-memory user dict (already read under _USER_DATA_LOCK)
+        # and let _write_users persist everything in a single atomic write.
+        # This avoids the double-write race in auth_handler.bump_token_version()
+        # which reads/writes the file independently without the lock.
+        new_version = user.get("token_version", 0) + 1
+        user["token_version"] = new_version
+        # Invalidate the in-memory cache so the next validation re-reads from file.
+        auth_handler._token_version_cache.pop(username, None)
 
         token = auth_handler.create_token(
             username=username,
