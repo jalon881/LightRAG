@@ -81,16 +81,22 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     fi
 
 # Install Rust via rustup with China mirror + cache.
-# Skip if the toolchain is already present in the cache mount — avoids
-# re-downloading ~200 MB of Rust components on every uncached build.
+# Skip if the toolchain is already present in the cache mount.  When a previous
+# build was Ctrl+C'd, the cache mount carries a partial install; rustup's
+# "recovering" dance takes longer than a clean reinstall, so nuke it first.
 RUN --mount=type=cache,target=/root/.rustup \
     --mount=type=cache,target=/root/.cargo \
     if [ -x /root/.cargo/bin/rustc ] && /root/.cargo/bin/rustc --version >/dev/null 2>&1; then \
         echo "Rust toolchain already installed, skipping"; \
     else \
+        echo "Installing Rust (this downloads ~200 MB, may take a few minutes)..."; \
         if [ "$USE_MIRROR" = "1" ]; then \
             export RUSTUP_DIST_SERVER=https://mirrors.tuna.tsinghua.edu.cn/rustup; \
             export RUSTUP_UPDATE_ROOT=https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup; \
+        fi; \
+        if [ -d /root/.rustup ] || [ -d /root/.cargo ]; then \
+            echo "Clearing corrupted Rust cache from previous interrupted build..."; \
+            rm -rf /root/.rustup /root/.cargo; \
         fi; \
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; \
     fi
