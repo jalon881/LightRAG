@@ -54,11 +54,13 @@ class UserCreate(BaseModel):
         default_factory=lambda: list(AVAILABLE_MENU_ITEMS),
         description="Allowed menu items",
     )
+    documents_quota: Optional[int] = Field(None, ge=0, description="Document upload quota (trial users only)")
 
 
 class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, max_length=128, description="New password")
     role: Optional[str] = Field(None, pattern="^(admin|user|trial)$", description="User role")
+    documents_quota: Optional[int] = Field(None, ge=0, description="Document upload quota (trial users only)")
 
 
 class UserLockToggle(BaseModel):
@@ -289,9 +291,9 @@ def create_user_routes(
                 __import__("datetime").timezone.utc
             ).isoformat(),
         }
-        # Trial users get a document upload quota
+        # Trial users get a document upload quota (configurable via API)
         if data.role == "trial":
-            new_user["documents_quota"] = 2
+            new_user["documents_quota"] = data.documents_quota if data.documents_quota is not None else 2
             new_user["documents_used"] = 0
         users.append(new_user)
         await _write_users(users)
@@ -329,6 +331,11 @@ def create_user_routes(
                 # Remove quota fields for non-trial roles
                 user.pop("documents_quota", None)
                 user.pop("documents_used", None)
+        if data.documents_quota is not None and user.get("role") == "trial":
+            user["documents_quota"] = data.documents_quota
+            # Reset used count if quota increased past current usage
+            if user.get("documents_used", 0) > data.documents_quota:
+                user["documents_used"] = data.documents_quota
 
         await _write_users(users)
         logger.info(f"User '{username}' updated")

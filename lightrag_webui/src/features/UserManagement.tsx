@@ -85,9 +85,11 @@ export default function UserManagement() {
   const [newPassword, setNewPassword] = useState('')
   const [newRole, setNewRole] = useState('user')
   const [newPermissions, setNewPermissions] = useState<string[]>([...AVAILABLE_MENU_ITEMS])
+  const [newQuota, setNewQuota] = useState<number>(2)
 
   const [editPassword, setEditPassword] = useState('')
   const [editRole, setEditRole] = useState('user')
+  const [editQuota, setEditQuota] = useState<number>(2)
 
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
 
@@ -160,7 +162,8 @@ export default function UserManagement() {
         username: newUsername.trim(),
         password: newPassword,
         role: newRole,
-        permissions: newPermissions
+        permissions: newPermissions,
+        ...(newRole === 'trial' ? { documents_quota: newQuota } : {})
       })
       toast.success(t('userManagement.userCreated', 'User created successfully'))
       setShowAddDialog(false)
@@ -212,6 +215,7 @@ export default function UserManagement() {
     setNewPassword('')
     setNewRole('user')
     setNewPermissions([...AVAILABLE_MENU_ITEMS])
+    setNewQuota(2)
   }
 
   // Edit user
@@ -221,7 +225,8 @@ export default function UserManagement() {
     try {
       await updateUser(selectedUser.username, {
         password: editPassword || undefined,
-        role: editRole
+        role: editRole,
+        ...(editRole === 'trial' ? { documents_quota: editQuota } : {})
       })
       toast.success(t('userManagement.userUpdated', 'User updated successfully'))
       setShowEditDialog(false)
@@ -238,6 +243,7 @@ export default function UserManagement() {
     setSelectedUser(user)
     setEditPassword('')
     setEditRole(user.role)
+    setEditQuota(user.documents_quota ?? 2)
     setShowEditDialog(true)
   }
 
@@ -422,6 +428,7 @@ export default function UserManagement() {
                       <th className="pb-3 font-medium">{t('userManagement.colRole', 'Role')}</th>
                       <th className="pb-3 font-medium">{t('userManagement.colStatus', 'Status')}</th>
                       <th className="pb-3 font-medium">{t('userManagement.colPermissions', 'Permissions')}</th>
+                      <th className="pb-3 font-medium">{t('userManagement.colQuota', 'Quota')}</th>
                       <th className="pb-3 font-medium">{t('userManagement.colToken', 'Token')}</th>
                       <th className="pb-3 font-medium">{t('userManagement.colTokenExpiry', 'Expiry')}</th>
                       <th className="pb-3 pr-2 text-right font-medium">{t('userManagement.colActions', 'Actions')}</th>
@@ -472,6 +479,15 @@ export default function UserManagement() {
                               </Badge>
                             )}
                           </div>
+                        </td>
+                        <td className="py-3">
+                          {user.role === 'trial' && user.documents_quota != null ? (
+                            <span className={`text-xs font-mono ${(user.documents_used ?? 0) >= user.documents_quota ? 'text-red-400' : 'text-muted-foreground'}`}>
+                              {user.documents_used ?? 0} / {user.documents_quota}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
                         </td>
                         <td className="py-3">
                           {user.login_token ? (
@@ -725,6 +741,24 @@ export default function UserManagement() {
                 </SelectContent>
               </Select>
             </div>
+            {newRole === 'trial' && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                {t('userManagement.docQuota', 'Document Quota')}
+              </label>
+              <Input
+                type="number"
+                min={0}
+                max={999}
+                placeholder="2"
+                value={newQuota}
+                onChange={e => setNewQuota(Number(e.target.value) || 0)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {t('userManagement.docQuotaHint', 'Maximum number of documents a trial user can upload')}
+              </p>
+            </div>
+            )}
             <div className="space-y-2">
               <label className="text-sm font-medium">
                 {t('userManagement.menuPermissions', 'Menu Permissions')}
@@ -791,6 +825,21 @@ export default function UserManagement() {
                 </SelectContent>
               </Select>
             </div>
+            {editRole === 'trial' && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                {t('userManagement.docQuota', 'Document Quota')}
+              </label>
+              <Input
+                type="number"
+                min={0}
+                max={999}
+                placeholder="2"
+                value={editQuota}
+                onChange={e => setEditQuota(Number(e.target.value) || 0)}
+              />
+            </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowEditDialog(false)}>

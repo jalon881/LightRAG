@@ -1162,6 +1162,7 @@ export const createUser = async (data: {
   password: string
   role?: string
   permissions?: string[]
+  documents_quota?: number
 }): Promise<UserInfo> => {
   const response = await axiosInstance.post('/users', data)
   return response.data
@@ -1169,7 +1170,7 @@ export const createUser = async (data: {
 
 export const updateUser = async (
   username: string,
-  data: { password?: string; role?: string }
+  data: { password?: string; role?: string; documents_quota?: number }
 ): Promise<UserInfo> => {
   const response = await axiosInstance.put(`/users/${encodeURIComponent(username)}`, data)
   return response.data
