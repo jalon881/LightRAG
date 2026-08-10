@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/state'
-import { getUsers, type UserInfo } from '@/api/lightrag'
+import { getMyQuota } from '@/api/lightrag'
 import { AlertTriangle } from 'lucide-react'
 
 /** Parse role from the JWT token stored in localStorage. */
@@ -18,30 +17,39 @@ function useRole(): string | null {
 
 /**
  * Displays a prominent quota banner for trial users above document upload areas.
- * Shows nothing for admin / standard users.
+ * Re-fetches quota after each successful upload via the custom "quota-refresh" event
+ * that UploadDocumentsDialog dispatches.
  */
 export default function TrialQuotaBanner() {
   const { t } = useTranslation()
   const role = useRole()
-  const username = useAuthStore((s) => s.username)
   const [quota, setQuota] = useState<number | null>(null)
   const [used, setUsed] = useState<number>(0)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  useEffect(() => {
-    if (role !== 'trial' || !username) return
-    let cancelled = false
-    getUsers()
+  const fetchQuota = useCallback(() => {
+    getMyQuota()
       .then((res) => {
-        if (cancelled) return
-        const me = res.users.find((u: UserInfo) => u.username === username)
-        if (me && me.documents_quota != null) {
-          setQuota(me.documents_quota)
-          setUsed(me.documents_used ?? 0)
+        if (res.documents_quota != null) {
+          setQuota(res.documents_quota)
+          setUsed(res.documents_used ?? 0)
         }
       })
       .catch(() => {})
-    return () => { cancelled = true }
-  }, [role, username])
+  }, [])
+
+  // Initial fetch
+  useEffect(() => {
+    if (role !== 'trial') return
+    fetchQuota()
+  }, [role, fetchQuota, refreshKey])
+
+  // Listen for upload-complete events to refresh the counter
+  useEffect(() => {
+    const handler = () => setRefreshKey(k => k + 1)
+    window.addEventListener('quota-refresh', handler)
+    return () => window.removeEventListener('quota-refresh', handler)
+  }, [])
 
   if (role !== 'trial' || quota == null) return null
 

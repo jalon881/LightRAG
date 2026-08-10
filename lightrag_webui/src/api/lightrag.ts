@@ -1157,6 +1157,19 @@ export const getUsers = async (): Promise<UserListResponse> => {
   return response.data
 }
 
+export interface MyQuota {
+  username: string
+  role: string
+  documents_quota?: number | null
+  documents_used?: number
+}
+
+/** Get the current user's own quota (no admin permission needed). */
+export const getMyQuota = async (): Promise<MyQuota> => {
+  const response = await axiosInstance.get('/users/me')
+  return response.data
+}
+
 export const createUser = async (data: {
   username: string
   password: string

@@ -249,6 +249,8 @@ export default function UploadDocumentsDialog({
 
         // Only update if at least one file was uploaded successfully
         if (hasSuccessfulUpload) {
+          // Notify the quota banner to re-fetch
+          window.dispatchEvent(new Event('quota-refresh'))
           // Refresh document list
           if (onDocumentsUploaded) {
             onDocumentsUploaded().catch(err => {

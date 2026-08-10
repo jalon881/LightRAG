@@ -22,7 +22,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from lightrag.api.auth import auth_handler
@@ -225,6 +225,34 @@ def create_user_routes(
     router = APIRouter(prefix="/users", tags=["User Management"])
 
     auth_dependency = get_combined_auth_dependency(api_key)
+
+    @router.get("/me")
+    async def get_current_user_quota(
+        request: Request,
+        _=Depends(auth_dependency),
+    ):
+        """Return the authenticated user's own quota info.
+
+        This is the only endpoint a trial user needs to see their remaining
+        document uploads. It does NOT expose other users' data.
+        """
+        from lightrag.api.utils_api import get_current_username
+
+        username = await get_current_username(request)
+        if not username:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+
+        users = await _read_users()
+        user = _find_user(users, username)
+        if not user:
+            raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+
+        return {
+            "username": user["username"],
+            "role": user.get("role", "user"),
+            "documents_quota": user.get("documents_quota"),
+            "documents_used": user.get("documents_used", 0),
+        }
 
     @router.get("", response_model=UserListResponse)
     async def list_users(_=Depends(auth_dependency)):
