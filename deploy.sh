@@ -233,6 +233,10 @@ update_code_from_git() {
                 -m "deploy.sh auto stash $(date '+%Y-%m-%d %H:%M')" 2>/dev/null || true
         fi
 
+        # 记录当前 HEAD，用于拉取后展示变更
+        local old_head
+        old_head=$(git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || echo "")
+
         # 拉取远程
         git -C "$PROJECT_DIR" fetch origin --prune --tags || {
             err "无法连接远程仓库。请检查网络和 SSH Key: ssh -T git@github.com"
@@ -249,7 +253,38 @@ update_code_from_git() {
         git -C "$PROJECT_DIR" checkout "$GIT_BRANCH" 2>/dev/null || \
             git -C "$PROJECT_DIR" checkout -b "$GIT_BRANCH" "origin/${GIT_BRANCH}"
         git -C "$PROJECT_DIR" reset --hard "origin/${GIT_BRANCH}"
-        log "  ✓ 已切换到: $GIT_BRANCH ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
+
+        local new_head
+        new_head=$(git -C "$PROJECT_DIR" rev-parse HEAD)
+
+        # 展示本次更新了哪些文件
+        if [ -n "$old_head" ] && [ "$old_head" != "$new_head" ]; then
+            local commit_count
+            commit_count=$(git -C "$PROJECT_DIR" rev-list --count "$old_head..$new_head" 2>/dev/null || echo "0")
+            echo ""
+            echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo -e "${GREEN}  📋 本次更新: ${commit_count} 个提交${NC}"
+            echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo ""
+            echo -e "  ${YELLOW}提交记录:${NC}"
+            git -C "$PROJECT_DIR" log --oneline --no-decorate "$old_head..$new_head" 2>/dev/null | while IFS= read -r line; do
+                echo -e "    • $line"
+            done
+            echo ""
+            echo -e "  ${YELLOW}变更文件:${NC}"
+            git -C "$PROJECT_DIR" diff --stat "$old_head" "$new_head" 2>/dev/null | while IFS= read -r line; do
+                echo -e "    $line"
+            done
+            echo ""
+            echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+            echo ""
+        elif [ -z "$old_head" ]; then
+            log "  📥 首次部署，跳过变更展示"
+        else
+            log "  ✓ 已是最新，无需更新"
+        fi
+
+        log "  ✓ 当前分支: $GIT_BRANCH ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
 
     else
         # ── 首次克隆 ──
