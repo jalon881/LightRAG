@@ -46,8 +46,6 @@ AVAILABLE_MENU_ITEMS = [
     "users",
 ]
 
-
-
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=1, max_length=64, description="Username")
     password: str = Field(..., min_length=1, max_length=128, description="Password")
