@@ -37,6 +37,10 @@ LIGHTRAG_PORT="${LIGHTRAG_PORT:-9621}"
 BUILD_MODE=false
 MIRROR_MODE=false
 
+# ===== 只部署后端/前端开关 =====
+DEPLOY_BACKEND_ONLY=false
+DEPLOY_FRONTEND_ONLY=false
+
 # Git 拉取配置
 GIT_REPO="${LIGHTRAG_GIT_REPO:-git@github.com:jalon881/LightRAG.git}"
 GIT_BRANCH="${LIGHTRAG_GIT_BRANCH:-jalon}"
@@ -61,6 +65,11 @@ header(){ echo ""; echo -e "${BLUE}━━━━━━━━━━━━━━━
 show_usage() {
     echo "用法: $0 [动作] [选项...]"
     echo ""
+    echo "快捷命令 (无需参数):"
+    echo "  $0               全部部署 (等同 up --git --mirror)"
+    echo "  $0 backend       仅部署后端 (等同 up --git --mirror --backend)"
+    echo "  $0 frontend      仅部署前端 (等同 up --git --mirror --frontend)"
+    echo ""
     echo "动作:"
     echo "  up              启动服务 (默认)"
     echo "  down            停止并移除容器"
@@ -71,10 +80,13 @@ show_usage() {
     echo ""
     echo "选项:"
     echo "  --git           从 Git 拉取源码后构建启动"
+    echo "  --backend       仅部署后端 (跳过前端构建，后端代码变更时使用)"
+    echo "  --frontend      仅部署前端 (仅构建前端，前端代码变更时使用)"
     echo "  --repo URL      Git 仓库地址"
     echo "  --branch NAME   Git 分支名"
     echo "  --build         本地构建镜像 (而非拉取镜像)"
     echo "  --compose FILE  指定 compose 文件 (默认: docker-compose.yml)"
+    echo "  --mirror        使用国内镜像源 (清华/淘宝) 加速构建"
     echo "  --help, -h      显示此帮助"
     echo ""
     echo "环境变量:"
@@ -84,17 +96,14 @@ show_usage() {
     echo "  LIGHTRAG_GIT_BRANCH    Git 分支"
     echo ""
     echo "示例:"
-    echo "  # 从 Git 拉取 jalon 分支 → 构建镜像 → 启动"
-    echo "  $0 up --git"
+    echo "  # 全部部署"
+    echo "  $0"
     echo ""
-    echo "  # 部署到指定目录"
-    echo "  LIGHTRAG_PROJECT_DIR=/opt/lightrag $0 up --git"
+    echo "  # 仅后端"
+    echo "  $0 backend"
     echo ""
-    echo "  # 本地已有代码，只构建启动"
-    echo "  $0 up --build"
-    echo ""
-    echo "  # 拉取官方镜像启动"
-    echo "  $0 pull && $0 up"
+    echo "  # 仅前端"
+    echo "  $0 frontend"
     echo ""
     echo "  # 日常运维"
     echo "  $0 logs && $0 restart && $0 status && $0 down"
@@ -104,6 +113,12 @@ show_usage() {
 
 parse_args() {
     ACTION="up"
+
+    # ── 快捷命令：无参数默认全部部署，backend/frontend 捷径 ──
+    if [ $# -eq 0 ]; then
+        GIT_MODE=true; MIRROR_MODE=true; BUILD_MODE=true
+        return
+    fi
 
     while [ $# -gt 0 ]; do
         case "$1" in
@@ -116,6 +131,10 @@ parse_args() {
                 BUILD_MODE=true; shift ;;
             --mirror)
                 MIRROR_MODE=true; shift ;;
+            --backend)
+                DEPLOY_BACKEND_ONLY=true; BUILD_MODE=true; shift ;;
+            --frontend)
+                DEPLOY_FRONTEND_ONLY=true; BUILD_MODE=true; shift ;;
             --git)
                 GIT_MODE=true; shift ;;
             --repo)
@@ -124,6 +143,10 @@ parse_args() {
             --branch)
                 shift; [ $# -eq 0 ] && { err "--branch 需要分支名"; exit 1; }
                 GIT_BRANCH="$1"; shift ;;
+            backend)
+                GIT_MODE=true; MIRROR_MODE=true; DEPLOY_BACKEND_ONLY=true; BUILD_MODE=true; ACTION="up"; shift ;;
+            frontend)
+                GIT_MODE=true; MIRROR_MODE=true; DEPLOY_FRONTEND_ONLY=true; BUILD_MODE=true; ACTION="up"; shift ;;
             up|down|logs|restart|pull|status)
                 ACTION="$1"; shift ;;
             *)
@@ -284,12 +307,18 @@ update_code_from_git() {
             log "  ✓ 已是最新，无需更新"
         fi
 
-        # If frontend source, Dockerfile, or deploy.sh changed, clear
-        # pre-built frontend artifacts so the Docker build rebuilds them
-        # instead of reusing stale bundles from a previous build.
-        if [ -n "$old_head" ] && [ "$old_head" != "$new_head" ]; then
+        # Frontend artifact invalidation logic.
+        # --backend: keep old frontend artifacts (skip frontend build).
+        # --frontend: always clear and rebuild frontend from latest source.
+        # default (full deploy): clear if frontend/Dockerfile/deploy.sh changed.
+        local webui_out="$PROJECT_DIR/lightrag/api/webui"
+        if [ "$DEPLOY_FRONTEND_ONLY" = true ] && [ -d "$webui_out" ]; then
+            log "  --frontend: 清除预构建产物以强制重建前端..."
+            find "$webui_out" -mindepth 1 -not -name '.gitkeep' -exec rm -rf {} + 2>/dev/null || true
+        elif [ "$DEPLOY_BACKEND_ONLY" = true ]; then
+            log "  --backend: 保留现有前端产物，仅构建后端..."
+        elif [ -n "$old_head" ] && [ "$old_head" != "$new_head" ]; then
             if git -C "$PROJECT_DIR" diff --name-only "$old_head" "$new_head" 2>/dev/null | grep -qE '^(lightrag_webui/|Dockerfile|deploy\.sh|docker-compose)'; then
-                local webui_out="$PROJECT_DIR/lightrag/api/webui"
                 if [ -d "$webui_out" ] && [ -f "$webui_out/index.html" ]; then
                     log "  检测到前端/Dockerfile 变更，清除旧的预构建产物以强制重建..."
                     find "$webui_out" -mindepth 1 -not -name '.gitkeep' -exec rm -rf {} + 2>/dev/null || true
@@ -382,7 +411,23 @@ build_frontend_if_needed() {
     local webui_dir="$PROJECT_DIR/lightrag_webui"
     local output_dir="$PROJECT_DIR/lightrag/api/webui"
 
-    if [ -f "$output_dir/index.html" ]; then
+    # --backend: always skip frontend build
+    if [ "$DEPLOY_BACKEND_ONLY" = true ]; then
+        if [ -f "$output_dir/index.html" ]; then
+            log "  --backend: 跳过前端构建 (使用现有产物)"
+        else
+            warn "  --backend: 前端无预构建产物，将使用 Docker 内旧缓存"
+        fi
+        return 0
+    fi
+
+    # --frontend: always rebuild even if artifacts exist
+    if [ "$DEPLOY_FRONTEND_ONLY" = true ]; then
+        log "  --frontend: 强制重建前端..."
+        if [ -f "$output_dir/index.html" ]; then
+            find "$output_dir" -mindepth 1 -not -name '.gitkeep' -exec rm -rf {} + 2>/dev/null || true
+        fi
+    elif [ -f "$output_dir/index.html" ]; then
         log "  ✓ 前端已有预构建产物，跳过"
         return 0
     fi
@@ -622,6 +667,8 @@ main() {
     echo "  动作:    $ACTION"
     [ "$GIT_MODE" = true ] && echo "  代码:    Git 拉取 → $GIT_REPO ($GIT_BRANCH)"
     [ "$BUILD_MODE" = true ] && echo "  构建:    本地构建"
+    [ "$DEPLOY_BACKEND_ONLY" = true ] && echo "  范围:    仅后端"
+    [ "$DEPLOY_FRONTEND_ONLY" = true ] && echo "  范围:    仅前端"
     echo ""
 
     case "$ACTION" in
