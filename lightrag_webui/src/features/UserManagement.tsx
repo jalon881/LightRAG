@@ -605,6 +605,19 @@ export default function UserManagement() {
                 value={role === 'admin' ? t('userManagement.superAdmin', 'Super Admin') : role === 'trial' ? t('userManagement.trialUser', 'Trial User') : role === 'user' ? t('userManagement.standardUser', 'Standard User') : (role || t('userManagement.roleUnknown', 'unknown'))}
                 mono
               />
+              {role === 'trial' && (() => {
+                const me = users.find(u => u.username === username)
+                const quota = me?.documents_quota
+                const used = me?.documents_used ?? 0
+                if (quota == null) return null
+                return (
+                  <InfoRow
+                    label={t('userManagement.docQuota', 'Document Quota')}
+                    value={`${used} / ${quota}${used >= quota ? ' (' + t('userManagement.quotaExhausted', '已用完') + ')' : ''}`}
+                    mono
+                  />
+                )
+              })()}
               <InfoRow
                 label={t('userManagement.tokenExpires', 'Token Expires')}
                 value={formatExpiry(tokenExpiresAt)}

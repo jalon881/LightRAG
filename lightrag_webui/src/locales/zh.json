@@ -174,6 +174,8 @@
         "duplicateFile": "文件名与服务器上的缓存重复"
       }
     },
+    "quotaExhaustedBanner": "上传配额已用完 ({{used}}/{{quota}})，请联系管理员升级账户。",
+    "quotaRemainingBanner": "试用账户：剩余 {{remaining}}/{{quota}} 次上传",
     "documentManager": {
       "title": "文档管理",
       "scanButton": "扫描/重试",
@@ -665,6 +667,7 @@
     "roleUnknown": "未知",
     "docQuota": "文档配额",
     "docQuotaHint": "试用用户最多可上传的文档数量",
+    "quotaExhausted": "已用完",
     "tokenExpires": "令牌过期时间",
     "lastRenewal": "令牌最近续期",
     "coreVersion": "核心版本",

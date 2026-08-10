@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils'
 import Button from '@/components/ui/Button'
 import Checkbox from '@/components/ui/Checkbox'
 import { Card } from '@/components/ui/Card'
+import TrialQuotaBanner from '@/components/TrialQuotaBanner'
 import {
   Table,
   TableBody,
@@ -233,6 +234,7 @@ export default function KnowledgeBaseDocuments({
 
   return (
     <div className="space-y-4">
+      <TrialQuotaBanner />
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="bg-muted/40 flex items-center gap-2 rounded-md px-3 py-2">

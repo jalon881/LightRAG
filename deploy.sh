@@ -543,6 +543,16 @@ do_pull() {
     log "拉取完成"
 }
 
+# Pre-pull Docker base images so the build step doesn't download them
+# over a slow connection.  These are idempotent — if already cached, they
+# complete in under a second.  The Rust components will be downloaded by
+# the Dockerfile but cached via BuildKit cache mounts after the first build.
+pull_base_images() {
+    log "预拉取 Docker 基础镜像 (首次较慢，后续秒过)..."
+    docker pull node:22-slim 2>/dev/null && log "  ✓ node:22-slim" || warn "  ⚠ node:22-slim 拉取失败"
+    docker pull python:3.12-slim-bookworm 2>/dev/null && log "  ✓ python:3.12-slim-bookworm" || warn "  ⚠ python:3.12-slim-bookworm 拉取失败"
+}
+
 do_up() {
     log "启动 LightRAG 服务..."
     cd "$PROJECT_DIR"
@@ -560,6 +570,7 @@ do_up() {
 
     if [ "$BUILD_MODE" = true ]; then
         log "  模式: 本地构建 + 启动"
+        pull_base_images
         $COMPOSE_CMD -f "$COMPOSE_FILE" build --progress=plain $build_args
         $COMPOSE_CMD -f "$COMPOSE_FILE" up -d --force-recreate
     else
