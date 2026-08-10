@@ -47,6 +47,12 @@ ENV PIP_INDEX_URL=$PYPI_MIRROR
 # Skip bytecode compilation on project install (~45s saving per build change).
 # .pyc files are generated lazily at runtime with negligible first-request overhead.
 ENV UV_NO_COMPILE_BYTECODE=1
+# Low-memory host guards: limit parallel builds so the OOM killer leaves us alone.
+ENV MAKEFLAGS="-j1"
+ENV CARGO_BUILD_JOBS=1
+ENV UV_CONCURRENT_BUILDS=1
+ENV UV_CONCURRENT_DOWNLOADS=4
+ENV UV_CONCURRENT_INSTALLS=4
 
 WORKDIR /app
 
@@ -147,6 +153,12 @@ WORKDIR /app
 ARG USE_MIRROR=0
 ARG PYPI_MIRROR=https://pypi.org/simple
 ENV PIP_INDEX_URL=$PYPI_MIRROR
+# Low-memory guards for the final stage as well
+ENV MAKEFLAGS="-j1"
+ENV CARGO_BUILD_JOBS=1
+ENV UV_CONCURRENT_BUILDS=1
+ENV UV_CONCURRENT_DOWNLOADS=4
+ENV UV_CONCURRENT_INSTALLS=4
 
 # Install uv via pip (avoids ghcr.io dependency)
 RUN pip install --no-cache-dir uv
