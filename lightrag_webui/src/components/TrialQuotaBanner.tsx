@@ -1,8 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/state'
 import { getUsers, type UserInfo } from '@/api/lightrag'
 import { AlertTriangle } from 'lucide-react'
+
+/** Parse role from the JWT token stored in localStorage. */
+function useRole(): string | null {
+  return useMemo(() => {
+    try {
+      const token = localStorage.getItem('LIGHTRAG-API-TOKEN')
+      if (!token) return null
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      return typeof payload.role === 'string' ? payload.role : null
+    } catch { return null }
+  }, [])
+}
 
 /**
  * Displays a prominent quota banner for trial users above document upload areas.
@@ -10,7 +22,7 @@ import { AlertTriangle } from 'lucide-react'
  */
 export default function TrialQuotaBanner() {
   const { t } = useTranslation()
-  const role = useAuthStore((s) => s.role)
+  const role = useRole()
   const username = useAuthStore((s) => s.username)
   const [quota, setQuota] = useState<number | null>(null)
   const [used, setUsed] = useState<number>(0)
