@@ -98,7 +98,7 @@ RUN --mount=type=cache,target=/root/.rustup \
             echo "Clearing corrupted Rust cache from previous interrupted build..."; \
             rm -rf /root/.rustup /root/.cargo; \
         fi; \
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; \
+        curl --proto '=https' --tlsv1.2 -Sf https://sh.rustup.rs | sh -s -- -y --verbose; \
     fi
 
 ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
