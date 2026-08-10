@@ -47,61 +47,26 @@ ENV PIP_INDEX_URL=$PYPI_MIRROR
 # Skip bytecode compilation on project install (~45s saving per build change).
 # .pyc files are generated lazily at runtime with negligible first-request overhead.
 ENV UV_NO_COMPILE_BYTECODE=1
-# Low-memory host guards: limit parallel builds so the OOM killer leaves us alone.
-ENV MAKEFLAGS="-j1"
-ENV CARGO_BUILD_JOBS=1
+# Low-memory guards for low-RAM servers (1-2 GB).
 ENV UV_CONCURRENT_BUILDS=1
 ENV UV_CONCURRENT_DOWNLOADS=4
 ENV UV_CONCURRENT_INSTALLS=4
 
 WORKDIR /app
 
-# Install system deps + uv + Rust (required by some wheels).
-# Use Tsinghua mirrors for apt. Mount caches so repeated builds are instant.
-# Skip apt-get if build-essential + pkg-config are already installed (cache mount
-# preserves them from a previous build run).
+# Install curl only.  No build-essential, no Rust — all Python packages
+# are installed from pre-built wheels so a compiler toolchain is unnecessary
+# and would OOM low-RAM (1-2 GB) servers during compilation.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    if command -v gcc >/dev/null 2>&1 && command -v pkg-config >/dev/null 2>&1; then \
-        echo "Build tools already installed, skipping apt-get"; \
-    else \
-        if [ "$USE_MIRROR" = "1" ]; then \
-            sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources; \
-        fi; \
-        if ! apt-get update; then \
-            echo "Mirror GPG failed, falling back to deb.debian.org"; \
-            sed -i 's|mirrors.tuna.tsinghua.edu.cn|deb.debian.org|g' /etc/apt/sources.list.d/debian.sources; \
-            apt-get update; \
-        fi; \
-        apt-get install -y --no-install-recommends \
-            curl \
-            build-essential \
-            pkg-config \
-        && rm -rf /var/lib/apt/lists/*; \
-    fi
+    if [ "$USE_MIRROR" = "1" ]; then \
+        sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    (apt-get update || (sed -i 's|mirrors.tuna.tsinghua.edu.cn|deb.debian.org|g' /etc/apt/sources.list.d/debian.sources && apt-get update)) \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Rust via rustup with China mirror + cache.
-# Skip if the toolchain is already present in the cache mount.  When a previous
-# build was Ctrl+C'd, the cache mount carries a partial install; rustup's
-# "recovering" dance takes longer than a clean reinstall, so nuke it first.
-RUN --mount=type=cache,target=/root/.rustup \
-    --mount=type=cache,target=/root/.cargo \
-    if [ -x /root/.cargo/bin/rustc ] && /root/.cargo/bin/rustc --version >/dev/null 2>&1; then \
-        echo "Rust toolchain already installed, skipping"; \
-    else \
-        echo "Installing Rust (this downloads ~200 MB, may take a few minutes)..."; \
-        if [ "$USE_MIRROR" = "1" ]; then \
-            export RUSTUP_DIST_SERVER=https://mirrors.tuna.tsinghua.edu.cn/rustup; \
-            export RUSTUP_UPDATE_ROOT=https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup; \
-        fi; \
-        if [ -d /root/.rustup ] || [ -d /root/.cargo ]; then \
-            echo "Clearing corrupted Rust cache from previous interrupted build..."; \
-            rm -rf /root/.rustup /root/.cargo; \
-        fi; \
-        curl --proto '=https' --tlsv1.2 -Sf https://sh.rustup.rs | sh -s -- -y --verbose; \
-    fi
-
-ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
+ENV PATH="/root/.local/bin:${PATH}"
 
 RUN pip install --no-cache-dir uv
 
@@ -117,7 +82,7 @@ COPY uv.lock .
 
 # Install base, API, and offline extras without the project to improve caching
 RUN --mount=type=cache,target=/root/.local/share/uv \
-    uv sync --frozen --no-dev --extra api --extra offline --no-install-project --no-editable
+    uv sync --frozen --no-dev --extra api --extra offline --no-install-project --no-editable --only-binary :all:
 
 # Copy project sources after dependency layer
 COPY lightrag/ ./lightrag/
@@ -127,7 +92,7 @@ COPY --from=frontend-builder /app/lightrag/api/webui ./lightrag/api/webui
 
 # Sync project in non-editable mode and ensure pip is available for runtime installs
 RUN --mount=type=cache,target=/root/.local/share/uv \
-    uv sync --frozen --no-dev --extra api --extra offline --no-editable \
+    uv sync --frozen --no-dev --extra api --extra offline --no-editable --only-binary :all: \
     && /app/.venv/bin/python -m ensurepip --upgrade
 
 # Pre-downloaded spaCy wheels (deploy.sh downloads them on the host for speed).
@@ -160,8 +125,6 @@ ARG USE_MIRROR=0
 ARG PYPI_MIRROR=https://pypi.org/simple
 ENV PIP_INDEX_URL=$PYPI_MIRROR
 # Low-memory guards for the final stage as well
-ENV MAKEFLAGS="-j1"
-ENV CARGO_BUILD_JOBS=1
 ENV UV_CONCURRENT_BUILDS=1
 ENV UV_CONCURRENT_DOWNLOADS=4
 ENV UV_CONCURRENT_INSTALLS=4
@@ -190,7 +153,7 @@ ENV PATH=/app/.venv/bin:/root/.local/bin:$PATH
 # the wheels downloaded in the builder stage without adding an image layer.
 RUN --mount=type=cache,target=/root/.local/share/uv \
     --mount=type=bind,from=builder,source=/app/spacy_models,target=/tmp/spacy_models \
-    uv sync --frozen --no-dev --extra api --extra offline --no-editable \
+    uv sync --frozen --no-dev --extra api --extra offline --no-editable --only-binary :all: \
     && /app/.venv/bin/python -m ensurepip --upgrade \
     && /app/.venv/bin/python -m pip install --no-index --no-cache-dir \
         --find-links=/tmp/spacy_models zh_core_web_sm en_core_web_sm
