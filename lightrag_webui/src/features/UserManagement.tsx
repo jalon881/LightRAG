@@ -412,6 +412,7 @@ export default function UserManagement() {
                 <UserIcon className="size-10 mb-3 opacity-40" />
                 {t('userManagement.noUsers', 'No users yet')}
               </div>
+
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
