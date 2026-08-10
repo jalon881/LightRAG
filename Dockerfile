@@ -50,28 +50,40 @@ ENV UV_NO_COMPILE_BYTECODE=1
 
 WORKDIR /app
 
-# Install system deps + uv + Rust (required by some wheels)
+# Install system deps + uv + Rust (required by some wheels).
 # Use Tsinghua mirrors for apt. Mount caches so repeated builds are instant.
+# Skip apt-get if build-essential + pkg-config are already installed (cache mount
+# preserves them from a previous build run).
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    if [ "$USE_MIRROR" = "1" ]; then \
-        sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources; \
-    fi \
-    && apt-get update \
-    && apt-get install -y --no-install-recommends \
-        curl \
-        build-essential \
-        pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+    if command -v gcc >/dev/null 2>&1 && command -v pkg-config >/dev/null 2>&1; then \
+        echo "Build tools already installed, skipping apt-get"; \
+    else \
+        if [ "$USE_MIRROR" = "1" ]; then \
+            sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources; \
+        fi; \
+        apt-get update \
+        && apt-get install -y --no-install-recommends \
+            curl \
+            build-essential \
+            pkg-config \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
-# Install Rust via rustup with China mirror + cache
+# Install Rust via rustup with China mirror + cache.
+# Skip if the toolchain is already present in the cache mount — avoids
+# re-downloading ~200 MB of Rust components on every uncached build.
 RUN --mount=type=cache,target=/root/.rustup \
     --mount=type=cache,target=/root/.cargo \
-    if [ "$USE_MIRROR" = "1" ]; then \
-        export RUSTUP_DIST_SERVER=https://mirrors.tuna.tsinghua.edu.cn/rustup; \
-        export RUSTUP_UPDATE_ROOT=https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup; \
-    fi \
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    if [ -x /root/.cargo/bin/rustc ] && /root/.cargo/bin/rustc --version >/dev/null 2>&1; then \
+        echo "Rust toolchain already installed, skipping"; \
+    else \
+        if [ "$USE_MIRROR" = "1" ]; then \
+            export RUSTUP_DIST_SERVER=https://mirrors.tuna.tsinghua.edu.cn/rustup; \
+            export RUSTUP_UPDATE_ROOT=https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup; \
+        fi; \
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; \
+    fi
 
 ENV PATH="/root/.cargo/bin:/root/.local/bin:${PATH}"
 
