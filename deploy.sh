@@ -382,8 +382,8 @@ update_code_from_git() {
         # ── 前端预构建产物失效策略 ──
         # --backend: 保留现有产物，跳过前端构建。
         # --frontend: 始终清除产物，强制重建。
-        # 默认 (全量部署): 前端源码/Dockerfile/deploy.sh 变更时清除产物。
-        #   依赖文件变更包含在 lightrag_webui/ 匹配中，不再单独判断。
+        # 默认 (全量部署): 仅在前端源码或 Dockerfile 变更时清除产物。
+        #   deploy.sh / docker-compose 变更不影响前端构建输出，不触发失效。
         local webui_out="$PROJECT_DIR/lightrag/api/webui"
         if [ "$DEPLOY_FRONTEND_ONLY" = true ] && [ -d "$webui_out" ]; then
             log "  --frontend: 清除预构建产物以强制重建前端..."
@@ -391,9 +391,9 @@ update_code_from_git() {
         elif [ "$DEPLOY_BACKEND_ONLY" = true ]; then
             log "  --backend: 保留现有前端产物，仅构建后端..."
         elif [ -n "$old_head" ] && [ "$old_head" != "$new_head" ]; then
-            if git -C "$PROJECT_DIR" diff --name-only "$old_head" "$new_head" 2>/dev/null | grep -qE '^(lightrag_webui/|Dockerfile|deploy\.sh|docker-compose)'; then
+            if git -C "$PROJECT_DIR" diff --name-only "$old_head" "$new_head" 2>/dev/null | grep -qE '^(lightrag_webui/|Dockerfile)'; then
                 if [ -d "$webui_out" ] && [ -f "$webui_out/index.html" ]; then
-                    log "  检测到前端相关文件变更，清除预构建产物以强制重建..."
+                    log "  检测到前端源码/Dockerfile 变更，清除预构建产物以强制重建..."
                     find "$webui_out" -mindepth 1 -not -name '.gitkeep' -exec rm -rf {} + 2>/dev/null || true
                 fi
             fi
