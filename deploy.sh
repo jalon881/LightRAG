@@ -62,6 +62,65 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 err()   { echo -e "${RED}[ERROR]${NC} $1"; }
 header(){ echo ""; echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; echo -e "${BLUE}  $1${NC}"; echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; echo ""; }
 
+# ==================== 依赖 Hash 追踪 ====================
+# 计算依赖清单文件的组合 hash，仅用于日志提示依赖是否变更。
+# 实际的依赖安装跳过由 Docker 层缓存自动处理：
+#   COPY package.json / pyproject.toml  ← 文件未变 → 命中缓存
+#   RUN npm ci / uv sync                ← 上层未变 → 命中缓存，跳过安装
+#   COPY source/                        ← 源码变更 → 只重建这层及之后
+
+DEP_LABELS=(
+    "lightrag_webui/package.json:前端 package.json"
+    "lightrag_webui/bun.lock:前端 bun.lock"
+    "pyproject.toml:Python pyproject.toml"
+    "uv.lock:Python uv.lock"
+)
+
+compute_dep_hash() {
+    local dir="$1"
+    local combined=""
+    for entry in "${DEP_LABELS[@]}"; do
+        local f="${entry%%:*}"
+        if [ -f "$dir/$f" ]; then
+            combined+=$(md5sum "$dir/$f" 2>/dev/null | awk '{print $1}')
+        fi
+    done
+    if [ -z "$combined" ]; then
+        echo "00000000000000000000000000000000"
+    else
+        echo "$combined" | md5sum 2>/dev/null | awk '{print $1}'
+    fi
+}
+
+# Compare individual dep files between old and new HEAD, print which changed.
+# Purely informational — Docker layer cache handles actual build skipping.
+check_dep_changes() {
+    local dir="$1" old_ref="$2" new_ref="$3"
+    local changed=()
+
+    for entry in "${DEP_LABELS[@]}"; do
+        local f="${entry%%:*}"
+        local label="${entry##*:}"
+        if ! git -C "$dir" diff --quiet "$old_ref" "$new_ref" -- "$f" 2>/dev/null; then
+            changed+=("$label")
+        fi
+    done
+
+    if [ ${#changed[@]} -gt 0 ]; then
+        echo -e "  ${YELLOW}📦 依赖文件变更 (Docker 将自动重装):${NC}"
+        for c in "${changed[@]}"; do
+            echo -e "    • $c"
+        done
+        echo ""
+        echo -e "  ${BLUE}ℹ Docker 层缓存说明:${NC}"
+        echo -e "    依赖文件未变时 COPY + RUN 层自动命中缓存，跳过安装。"
+        echo -e "    源码文件变更时只有 COPY source/ 及之后的层重建。"
+    else
+        echo -e "  ${GREEN}📦 依赖文件未变更 — Docker 层缓存将跳过安装${NC}"
+    fi
+    echo ""
+}
+
 show_usage() {
     echo "用法: $0 [动作] [选项...]"
     echo ""
@@ -234,7 +293,7 @@ update_code_from_git() {
     if [ -f "$PROJECT_DIR/.env" ]; then
         DOTENV_BACKUP="$(mktemp /tmp/lightrag-dotenv-backup.XXXXXX)"
         cp "$PROJECT_DIR/.env" "$DOTENV_BACKUP"
-        log "  📦 .env 已备份到: $DOTENV_BACKUP"
+        log "  📦 .env 已备份"
     fi
 
     if [ -d "$PROJECT_DIR/.git" ]; then
@@ -256,9 +315,11 @@ update_code_from_git() {
                 -m "deploy.sh auto stash $(date '+%Y-%m-%d %H:%M')" 2>/dev/null || true
         fi
 
-        # 记录当前 HEAD，用于拉取后展示变更
+        # ── 记录拉取前的状态 ──
         local old_head
         old_head=$(git -C "$PROJECT_DIR" rev-parse HEAD 2>/dev/null || echo "")
+        local old_dep_hash
+        old_dep_hash=$(compute_dep_hash "$PROJECT_DIR")
 
         # 拉取远程
         git -C "$PROJECT_DIR" fetch origin --prune --tags || {
@@ -279,8 +340,10 @@ update_code_from_git() {
 
         local new_head
         new_head=$(git -C "$PROJECT_DIR" rev-parse HEAD)
+        local new_dep_hash
+        new_dep_hash=$(compute_dep_hash "$PROJECT_DIR")
 
-        # 展示本次更新了哪些文件
+        # ── 展示变更摘要 ──
         if [ -n "$old_head" ] && [ "$old_head" != "$new_head" ]; then
             local commit_count
             commit_count=$(git -C "$PROJECT_DIR" rev-list --count "$old_head..$new_head" 2>/dev/null || echo "0")
@@ -299,6 +362,15 @@ update_code_from_git() {
                 echo -e "    $line"
             done
             echo ""
+
+            # 依赖变更检测（仅日志，Docker 层缓存自动处理跳过）
+            if [ "$old_dep_hash" != "$new_dep_hash" ]; then
+                check_dep_changes "$PROJECT_DIR" "$old_head" "$new_head"
+            else
+                echo -e "  ${GREEN}📦 依赖文件未变更 — Docker 层缓存将跳过安装${NC}"
+                echo ""
+            fi
+
             echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
             echo ""
         elif [ -z "$old_head" ]; then
@@ -307,10 +379,11 @@ update_code_from_git() {
             log "  ✓ 已是最新，无需更新"
         fi
 
-        # Frontend artifact invalidation logic.
-        # --backend: keep old frontend artifacts (skip frontend build).
-        # --frontend: always clear and rebuild frontend from latest source.
-        # default (full deploy): clear if frontend/Dockerfile/deploy.sh changed.
+        # ── 前端预构建产物失效策略 ──
+        # --backend: 保留现有产物，跳过前端构建。
+        # --frontend: 始终清除产物，强制重建。
+        # 默认 (全量部署): 前端源码/Dockerfile/deploy.sh 变更时清除产物。
+        #   依赖文件变更包含在 lightrag_webui/ 匹配中，不再单独判断。
         local webui_out="$PROJECT_DIR/lightrag/api/webui"
         if [ "$DEPLOY_FRONTEND_ONLY" = true ] && [ -d "$webui_out" ]; then
             log "  --frontend: 清除预构建产物以强制重建前端..."
@@ -320,13 +393,13 @@ update_code_from_git() {
         elif [ -n "$old_head" ] && [ "$old_head" != "$new_head" ]; then
             if git -C "$PROJECT_DIR" diff --name-only "$old_head" "$new_head" 2>/dev/null | grep -qE '^(lightrag_webui/|Dockerfile|deploy\.sh|docker-compose)'; then
                 if [ -d "$webui_out" ] && [ -f "$webui_out/index.html" ]; then
-                    log "  检测到前端/Dockerfile 变更，清除旧的预构建产物以强制重建..."
+                    log "  检测到前端相关文件变更，清除预构建产物以强制重建..."
                     find "$webui_out" -mindepth 1 -not -name '.gitkeep' -exec rm -rf {} + 2>/dev/null || true
                 fi
             fi
         fi
 
-        log "  ✓ 当前分支: $GIT_BRANCH ($(git -C "$PROJECT_DIR" rev-parse --short HEAD))"
+        log "  ✓ 当前: $GIT_BRANCH @ $(git -C "$PROJECT_DIR" rev-parse --short HEAD)"
 
     else
         # ── 首次克隆 ──
